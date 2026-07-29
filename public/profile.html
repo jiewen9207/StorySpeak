@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人中心 - StorySpeak English</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .profile-section {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+    .word-list-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .word-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .word-item:hover {
+      transform: scale(1.05);
+    }
+    .word-item .remove {
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <a href="/stories.html" class="logo">StorySpeak</a>
+      <nav class="nav">
+        <a href="/stories.html">故事库</a>
+        <a href="/favorites.html">收藏夹</a>
+        <a href="/profile.html" class="active">个人中心</a>
+        <a href="/admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="#" id="logoutBtn">退出</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="profile-section" id="userInfo">
+      <h2 style="margin-bottom: 16px;">个人信息</h2>
+      <div id="userDetails"></div>
+    </div>
+
+    <div class="profile-section">
+      <h2 style="margin-bottom: 16px;">📖 我的生词本</h2>
+      <div id="wordList" class="word-list-container"></div>
+      <div id="emptyWords" class="empty-state">
+        <div class="empty-state-icon">📚</div>
+        <div>还没有收藏的单词</div>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h2 style="margin-bottom: 16px;">📊 学习统计</h2>
+      <div id="statsDisplay"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    async function init() {
+      if (!checkAuth()) return;
+
+      document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        logout();
+      });
+
+      try {
+        const user = await api('/api/user/profile');
+        if (user.is_admin) {
+          document.getElementById('adminLink').style.display = 'inline';
+        }
+        displayUserInfo(user);
+        loadWords();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+
+    function displayUserInfo(user) {
+      document.getElementById('userDetails').innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+          <div><strong>用户名：</strong>${user.username}</div>
+          <div><strong>邮箱：</strong>${user.email}</div>
+          <div><strong>状态：</strong>${user.is_admin ? '管理员' : (user.is_active ? '✓ 已激活' : '⚠️ 未激活')}</div>
+        </div>
+        <div id="statsDisplay" style="margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+          <div class="stat-card" style="text-align: center;">
+            <div class="stat-value">${user.stats.totalStories}</div>
+            <div class="stat-label">学习故事数</div>
+          </div>
+          <div class="stat-card" style="text-align: center;">
+            <div class="stat-value">${user.stats.completedStories}</div>
+            <div class="stat-label">完成故事数</div>
+          </div>
+          <div class="stat-card" style="text-align: center;">
+            <div class="stat-value">${Math.floor(user.stats.totalTime / 60)}</div>
+            <div class="stat-label">学习分钟数</div>
+          </div>
+          <div class="stat-card" style="text-align: center;">
+            <div class="stat-value">${user.stats.favorites}</div>
+            <div class="stat-label">收藏故事数</div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadWords() {
+      try {
+        const words = await api('/api/words');
+        const list = document.getElementById('wordList');
+        const empty = document.getElementById('emptyWords');
+        
+        if (words.length === 0) {
+          list.style.display = 'none';
+          empty.style.display = 'block';
+          return;
+        }
+        
+        empty.style.display = 'none';
+        list.innerHTML = words.map(w => `
+          <div class="word-item" onclick="speakWord('${w.word}')">
+            ${w.word}
+            <span class="remove" onclick="event.stopPropagation(); removeWord('${w.id}', '${w.word}');">✕</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+
+    window.speakWord = function(word) {
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(word);
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+      }
+    };
+
+    window.removeWord = async function(id, word) {
+      if (!confirm(`确定要删除单词 "${word}" 吗？`)) return;
+      try {
+        await api(`/api/words/${encodeURIComponent(word)}`, { method: 'DELETE' });
+        loadWords();
+        showMessage('已删除', 'success');
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    };
+
+    init();
+  </script>
+</body>
+</html>

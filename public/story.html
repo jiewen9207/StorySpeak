@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>故事阅读 - StorySpeak English</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <a href="/stories.html" class="logo">StorySpeak</a>
+      <nav class="nav">
+        <a href="/stories.html">故事库</a>
+        <a href="/favorites.html">收藏夹</a>
+        <a href="/profile.html">个人中心</a>
+        <a href="/admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="#" id="logoutBtn">退出</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="storyContainer" class="story-reader">
+      <div class="story-header">
+        <div>
+          <h1 id="storyTitle" class="story-title"></h1>
+          <div id="storyMeta" class="story-meta"></div>
+        </div>
+        <div class="story-actions">
+          <button id="favoriteBtn" class="favorite-btn" title="收藏">♡</button>
+          <button id="toggleChinese" class="toggle-btn">显示/隐藏翻译</button>
+          <button id="autoPlayAll" class="toggle-btn">🎵 连续播放</button>
+          <button id="markComplete" class="toggle-btn">✓ 标记完成</button>
+        </div>
+      </div>
+      <div id="sentencesContainer"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const storyId = urlParams.get('id');
+    let storyData = null;
+    let currentSentenceIndex = 0;
+    let showChinese = true;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+    let recordingTimeouts = {};
+    let startTime = Date.now();
+
+    async function init() {
+      if (!checkAuth()) return;
+      if (!storyId) {
+        window.location.href = '/stories.html';
+        return;
+      }
+
+      document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        logout();
+      });
+
+      try {
+        const user = await api('/api/user/profile');
+        if (user.is_admin) {
+          document.getElementById('adminLink').style.display = 'inline';
+        }
+        storyData = await api(`/api/stories/${storyId}`);
+        renderStory();
+        setupEventListeners();
+      } catch (err) {
+        showMessage(err.message, 'error');
+        setTimeout(() => {
+          window.location.href = '/stories.html';
+        }, 2000);
+      }
+    }
+
+    function renderStory() {
+      document.title = `${storyData.title} - StorySpeak`;
+      document.getElementById('storyTitle').textContent = storyData.title;
+      
+      const difficultyText = { easy: '简单', medium: '中等', hard: '困难' }[storyData.difficulty] || storyData.difficulty;
+      const categoryText = { daily: '日常生活', travel: '旅行', business: '商务', social: '社交', academic: '学术' }[storyData.category] || storyData.category;
+      
+      document.getElementById('storyMeta').innerHTML = `
+        <span class="badge badge-${storyData.difficulty}">${difficultyText}</span>
+        <span class="badge badge-category">${categoryText}</span>
+      `;
+      
+      document.getElementById('favoriteBtn').textContent = storyData.is_favorite ? '♥' : '♡';
+      document.getElementById('favoriteBtn').style.color = storyData.is_favorite ? '#ff4757' : '';
+      
+      const container = document.getElementById('sentencesContainer');
+      container.innerHTML = storyData.sentences.map((s, i) => `
+        <div class="sentence-item" data-index="${i}">
+          <div style="display: flex; justify-content: space-between; align-items: start; gap: 12px;">
+            <div style="flex: 1;">
+              <div class="sentence-english" id="en-${i}">${s.english}</div>
+              <div class="sentence-chinese ${showChinese ? '' : 'hidden'}" id="zh-${i}">${s.chinese || ''}</div>
+            </div>
+            <span style="color: #bbb; font-size: 14px; white-space: nowrap;">${String(i + 1).padStart(2, '0')}</span>
+          </div>
+          <div class="sentence-actions">
+            <button class="icon-btn icon-btn-play" title="播放原声" onclick="playSentence(${i})">
+              <span>▶</span>
+            </button>
+            <button class="icon-btn icon-btn-record" title="跟读录音" onclick="toggleRecording(${i})">
+              <span>🎤</span>
+            </button>
+            <button class="icon-btn icon-btn-word" title="加入生词本" onclick="addToWordBank(${i})">
+              <span>📖</span>
+            </button>
+          </div>
+          <div id="compare-${i}" class="compare-section hidden"></div>
+        </div>
+      `).join('');
+      
+      currentSentenceIndex = storyData.progress.last_sentence_index || 0;
+      scrollToSentence(currentSentenceIndex);
+    }
+
+    function setupEventListeners() {
+      document.getElementById('toggleChinese').addEventListener('click', () => {
+        showChinese = !showChinese;
+        document.querySelectorAll('.sentence-chinese').forEach(el => {
+          el.classList.toggle('hidden', !showChinese);
+        });
+      });
+
+      document.getElementById('favoriteBtn').addEventListener('click', async () => {
+        try {
+          const result = await api(`/api/stories/${storyId}/favorite`, { method: 'POST' });
+          storyData.is_favorite = result.is_favorite;
+          document.getElementById('favoriteBtn').textContent = result.is_favorite ? '♥' : '♡';
+          document.getElementById('favoriteBtn').style.color = result.is_favorite ? '#ff4757' : '';
+          showMessage(result.is_favorite ? '已收藏' : '已取消收藏', 'success');
+        } catch (err) {
+          showMessage(err.message, 'error');
+        }
+      });
+
+      document.getElementById('markComplete').addEventListener('click', async () => {
+        try {
+          await api(`/api/stories/${storyId}/progress`, {
+            method: 'POST',
+            body: {
+              last_sentence_index: storyData.sentences.length - 1,
+              is_completed: 1,
+              read_time: Math.floor((Date.now() - startTime) / 1000)
+            }
+          });
+          showMessage('恭喜完成本篇故事！', 'success');
+        } catch (err) {
+          showMessage(err.message, 'error');
+        }
+      });
+
+      document.getElementById('autoPlayAll').addEventListener('click', () => {
+        playAllSentences();
+      });
+
+      window.addEventListener('beforeunload', saveProgress);
+    }
+
+    async function playSentence(index) {
+      const sentence = storyData.sentences[index];
+      if (!sentence) return;
+      
+      const text = sentence.english;
+      
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      } else {
+        showMessage('您的浏览器不支持语音播放', 'error');
+      }
+      
+      currentSentenceIndex = index;
+      saveProgress();
+    }
+
+    async function playAllSentences() {
+      if (!('speechSynthesis' in window)) {
+        showMessage('您的浏览器不支持语音播放', 'error');
+        return;
+      }
+      
+      window.speechSynthesis.cancel();
+      
+      for (let i = 0; i < storyData.sentences.length; i++) {
+        const sentence = storyData.sentences[i];
+        const utterance = new SpeechSynthesisUtterance(sentence.english);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        
+        window.speechSynthesis.speak(utterance);
+        
+        await new Promise(resolve => {
+          utterance.onend = resolve;
+          utterance.onerror = resolve;
+        });
+        
+        currentSentenceIndex = i;
+        saveProgress();
+      }
+      
+      showMessage('播放完成！', 'success');
+    }
+
+    async function toggleRecording(index) {
+      if (isRecording) {
+        stopRecording(index);
+      } else {
+        startRecording(index);
+      }
+    }
+
+    async function startRecording(index) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+        
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+          const url = URL.createObjectURL(audioBlob);
+          showRecordingResult(index, url);
+        };
+        
+        mediaRecorder.start();
+        isRecording = true;
+        
+        const btn = document.querySelector(`[onclick="toggleRecording(${index})"]`);
+        btn.classList.add('recording');
+        btn.innerHTML = '<span style="color: #e91e63;">⏹</span>';
+        
+        showMessage('正在录音，再次点击停止...', 'success');
+      } catch (err) {
+        showMessage('无法访问麦克风：' + err.message, 'error');
+      }
+    }
+
+    function stopRecording(index) {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      }
+      isRecording = false;
+      
+      const btn = document.querySelector(`[onclick="toggleRecording(${index})"]`);
+      btn.classList.remove('recording');
+      btn.innerHTML = '<span>🎤</span>';
+    }
+
+    function showRecordingResult(index, userAudioUrl) {
+      const sentence = storyData.sentences[index];
+      const compareDiv = document.getElementById(`compare-${index}`);
+      compareDiv.classList.remove('hidden');
+      
+      const nativeSentence = sentence.audio_file 
+        ? `<audio controls src="${sentence.audio_file}"></audio>`
+        : `<div style="color: #888; font-size: 13px;">点击上方 ▶ 按钮播放原声（使用浏览器语音合成）</div>`;
+      
+      compareDiv.innerHTML = `
+        <div class="compare-item">
+          <div class="compare-title">🎵 原声</div>
+          ${nativeSentence}
+        </div>
+        <div class="compare-item">
+          <div class="compare-title">🎤 你的录音</div>
+          <audio controls src="${userAudioUrl}"></audio>
+        </div>
+      `;
+    }
+
+    async function addToWordBank(index) {
+      const sentence = storyData.sentences[index];
+      const words = sentence.english.match(/[a-zA-Z']+/g) || [];
+      
+      const addedWords = [];
+      for (const word of words) {
+        if (word.length > 2) {
+          try {
+            await api('/api/words', {
+              method: 'POST',
+              body: { word: word.toLowerCase() }
+            });
+            addedWords.push(word);
+          } catch (e) {}
+        }
+      }
+      
+      if (addedWords.length > 0) {
+        showMessage(`已将 ${addedWords.length} 个单词加入生词本`, 'success');
+      } else {
+        showMessage('没有新的单词可添加', 'success');
+      }
+    }
+
+    function scrollToSentence(index) {
+      const sentence = document.querySelector(`[data-index="${index}"]`);
+      if (sentence) {
+        sentence.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    async function saveProgress() {
+      if (!storyData) return;
+      try {
+        await api(`/api/stories/${storyId}/progress`, {
+          method: 'POST',
+          body: {
+            last_sentence_index: currentSentenceIndex,
+            read_time: Math.floor((Date.now() - startTime) / 1000)
+          }
+        });
+        startTime = Date.now();
+      } catch (e) {}
+    }
+
+    init();
+  </script>
+</body>
+</html>

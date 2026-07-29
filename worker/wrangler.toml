@@ -1,0 +1,14 @@
+name = "storyspeak-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "storyspeak-db"
+database_id = "storyspeak-db"
+
+[env.production]
+name = "storyspeak-worker"
+
+[env.development]
+name = "storyspeak-worker-dev"
