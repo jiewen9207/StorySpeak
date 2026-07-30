@@ -245,5 +245,72 @@ module.exports = async (req, res) => {
     return res.json({ success: true, codes });
   }
 
+  // Admin: Get stats
+  if (path === '/api/admin/stats' && method === 'GET' && authUser?.is_admin) {
+    if (supabase) {
+      const { count: totalUsers } = await supabase.from('users').select('*', { count: 'exact', head: true });
+      const { count: activeUsers } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_active', true);
+      const { count: totalCodes } = await supabase.from('redemption_codes').select('*', { count: 'exact', head: true });
+      const { count: usedCodes } = await supabase.from('redemption_codes').select('*', { count: 'exact', head: true }).eq('status', 'used');
+      const { count: totalStories } = await supabase.from('stories').select('*', { count: 'exact', head: true });
+      
+      // Today users
+      const today = new Date().toISOString().split('T')[0];
+      const { count: todayUsers } = await supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', today);
+      
+      // Popular stories (simplified)
+      const { data: popularStories } = await supabase.from('stories').select('id, title').limit(5);
+      
+      return res.json({ totalUsers: totalUsers || 0, activeUsers: activeUsers || 0, totalCodes: totalCodes || 0, usedCodes: usedCodes || 0, totalStories: totalStories || 0, todayUsers: todayUsers || 0, popularStories: popularStories || [] });
+    }
+    return res.json({ totalUsers: 0, activeUsers: 0, totalCodes: 0, usedCodes: 0, totalStories: 0, todayUsers: 0, popularStories: [] });
+  }
+
+  // Admin: Get codes
+  if (path.match(/^\/api\/admin\/codes/) && method === 'GET' && authUser?.is_admin) {
+    if (supabase) {
+      const status = req.query.status;
+      let query = supabase.from('redemption_codes').select('*, users(username)').order('created_at', { ascending: false }).limit(100);
+      if (status) query = query.eq('status', status);
+      const { data: codes } = await query;
+      
+      const result = (codes || []).map(c => ({
+        ...c,
+        used_by_name: c.users?.username || null
+      }));
+      
+      return res.json(result);
+    }
+    return res.json([]);
+  }
+
+  // Admin: Get users
+  if (path === '/api/admin/users' && method === 'GET' && authUser?.is_admin) {
+    if (supabase) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      return res.json(users || []);
+    }
+    return res.json([]);
+  }
+
+  // Admin: Toggle user active
+  if (path.match(/^\/api\/admin\/users\/\d+\/toggle-active$/) && method === 'POST' && authUser?.is_admin) {
+    const userId = parseInt(path.match(/^\/api\/admin\/users\/(\d+)\/toggle-active$/)[1]);
+    if (supabase) {
+      const { data: user } = await supabase.from('users').select('is_active').eq('id', userId).single();
+      if (!user) return res.status(404).json({ error: '用户不存在' });
+      
+      const newStatus = !user.is_active;
+      await supabase.from('users').update({ is_active: newStatus }).eq('id', userId);
+      
+      return res.json({ success: true, is_active: newStatus });
+    }
+    return res.status(500).json({ error: '数据库未连接' });
+  }
+
   res.json({ message: 'StorySpeak API' });
 };
