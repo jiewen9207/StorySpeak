@@ -319,23 +319,31 @@ module.exports = async (req, res) => {
   // Admin: Generate codes
   if (path === '/api/admin/generate-codes' && method === 'POST' && authUser?.is_admin) {
     const { count = 10 } = req.body || {};
-    const codes = [];
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     
+    // Get current max id
+    let startId = 10000;
+    if (supabase) {
+      const { data } = await supabase.from('redemption_codes').select('id').order('id', { ascending: false }).limit(1);
+      if (data && data.length > 0) {
+        startId = data[0].id + 1;
+      }
+    }
+    
+    const codes = [];
     for (let i = 0; i < count; i++) {
       let code = '';
       for (let j = 0; j < 12; j++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      codes.push(code);
+      codes.push({ id: startId + i, code, status: 'unused' });
     }
     
     if (supabase) {
-      const insertData = codes.map(code => ({ code, status: 'unused' }));
-      await supabase.from('redemption_codes').insert(insertData);
+      await supabase.from('redemption_codes').insert(codes);
     }
     
-    return res.json({ success: true, codes });
+    return res.json({ success: true, codes: codes.map(c => c.code) });
   }
 
   // Admin: Get stats
