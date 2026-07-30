@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+let bcrypt;
+try { bcrypt = require('bcryptjs'); } catch(e) { bcrypt = null; console.log('bcrypt not available'); }
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -112,8 +114,8 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: '用户名或邮箱已被注册' });
       }
       
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = bcrypt.hashSync(password, 10);
+      // Hash password if bcrypt available, otherwise store as-is
+      const hashedPassword = (bcrypt) ? bcrypt.hashSync(password, 10) : password;
       
       const { data, error } = await supabase
         .from('users')
@@ -149,8 +151,14 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: '用户不存在' });
       }
       
-      const bcrypt = require('bcryptjs');
-      if (!bcrypt.compareSync(password, user.password)) {
+      // Use bcrypt if available, otherwise simple comparison
+      let passwordValid = false;
+      if (bcrypt && user.password) {
+        passwordValid = bcrypt.compareSync(password, user.password);
+      } else {
+        passwordValid = (user.password === password);
+      }
+      if (!passwordValid) {
         return res.status(400).json({ error: '密码错误' });
       }
       
