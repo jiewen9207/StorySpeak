@@ -55,10 +55,40 @@ module.exports = async (req, res) => {
 
   // Debug endpoint
   if (path === '/api/debug' && method === 'GET') {
+    let testResult = 'not tested';
+    if (supabase) {
+      const { data, error } = await supabase.from('users').select('id,username').limit(1);
+      testResult = error ? error.message : `found ${data?.length || 0} users`;
+    }
     return res.json({
       supabaseConnected: !!supabase,
       supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
-      supabaseKey: supabaseKey ? 'SET' : 'MISSING'
+      supabaseKey: supabaseKey ? 'SET' : 'MISSING',
+      testQuery: testResult
+    });
+  }
+
+  // Debug login
+  if (path === '/api/debug-login' && method === 'POST') {
+    const { login, password } = req.body || {};
+    if (!supabase) return res.json({ error: 'no supabase' });
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .or(`username.eq.${login},email.eq.${login}`)
+      .single();
+    
+    if (error || !user) return res.json({ step: 'query', result: 'user not found', error: error?.message });
+    
+    const bcrypt = require('bcryptjs');
+    const passwordValid = bcrypt.compareSync(password, user.password);
+    
+    return res.json({ 
+      step: 'password', 
+      userFound: user.username, 
+      passwordValid,
+      hashLength: user.password?.length
     });
   }
 
