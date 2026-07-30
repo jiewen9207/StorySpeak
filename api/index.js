@@ -177,24 +177,30 @@ module.exports = async (req, res) => {
   }
 
   // Redeem code
-  if (path === '/api/redeem' && method === 'POST' && authUser) {
+  if (path === '/api/redeem' && method === 'POST') {
+    if (!authUser) return res.status(401).json({ error: '请先登录' });
+    
     const { code } = req.body || {};
     if (!code) return res.status(400).json({ error: '请输入兑换码' });
     
+    // Debug: test database connection
+    const testCode = code.trim().toUpperCase();
+    
     if (supabase) {
-      const { data: redeemCode } = await supabase
+      const { data: redeemCode, error } = await supabase
         .from('redemption_codes')
         .select('*')
-        .eq('code', code)
+        .eq('code', testCode)
         .single();
       
-      if (!redeemCode) return res.status(400).json({ error: '兑换码不存在' });
+      if (error) return res.status(500).json({ error: '查询失败: ' + error.message });
+      if (!redeemCode) return res.status(400).json({ error: '兑换码不存在或已被使用', code: testCode });
       if (redeemCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
       
       await supabase
         .from('redemption_codes')
         .update({ status: 'used', used_by: authUser.id })
-        .eq('code', code);
+        .eq('code', testCode);
       
       await supabase
         .from('users')
@@ -203,10 +209,10 @@ module.exports = async (req, res) => {
       
       return res.json({ success: true, message: '兑换码激活成功！' });
     } else {
-      if (!demoCodes[code] || demoCodes[code].status === 'used') {
+      if (!demoCodes[testCode] || demoCodes[testCode].status === 'used') {
         return res.status(400).json({ error: '兑换码无效或已被使用' });
       }
-      demoCodes[code].status = 'used';
+      demoCodes[testCode].status = 'used';
       authUser.is_active = true;
       return res.json({ success: true, message: '兑换码激活成功！' });
     }
