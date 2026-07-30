@@ -1,6 +1,6 @@
 {
-  "buildCommand": "echo 'Static site - no build needed'",
-  "outputDirectory": "public",
-  "installCommand": "echo 'No dependencies needed for static site'",
-  "framework": null
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.js" }
+  ]
 }

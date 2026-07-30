@@ -1,4 +1,4 @@
-const API_BASE = 'https://storyspeak-worker.ddeng5889.workers.dev';
+const API_BASE = '';
 
 function getToken() {
   return localStorage.getItem('storyspeak_token');
