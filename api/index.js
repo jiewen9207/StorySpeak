@@ -7,20 +7,6 @@ let supabase = null;
 
 if (supabaseUrl && supabaseKey) {
   supabase = createClient(supabaseUrl, supabaseKey);
-  console.log('Supabase connected:', !!supabase);
-} else {
-  console.log('Supabase NOT connected - env vars missing');
-  console.log('SUPABASE_URL:', supabaseUrl);
-  console.log('SUPABASE_KEY:', supabaseKey ? 'SET' : 'MISSING');
-}
-
-// Debug endpoint
-if (path === '/api/debug' && method === 'GET') {
-  return res.json({
-    supabaseConnected: !!supabase,
-    supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
-    supabaseKey: supabaseKey ? 'SET' : 'MISSING'
-  });
 }
 
 // Demo data for fallback
@@ -66,6 +52,15 @@ module.exports = async (req, res) => {
   const method = req.method;
   const authHeader = req.headers.authorization;
   const authUser = await getAuthUser(authHeader);
+
+  // Debug endpoint
+  if (path === '/api/debug' && method === 'GET') {
+    return res.json({
+      supabaseConnected: !!supabase,
+      supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
+      supabaseKey: supabaseKey ? 'SET' : 'MISSING'
+    });
+  }
 
   // Register
   if (path === '/api/register' && method === 'POST') {
