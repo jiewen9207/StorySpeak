@@ -68,14 +68,34 @@
         if (user.is_admin) {
           document.getElementById('adminLink').style.display = 'inline';
         }
+        
+        // Check if user is activated
+        if (!user.is_active && !user.is_admin) {
+          document.getElementById('storyContainer').innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+              <h2>⚠️ 账户未激活</h2>
+              <p>请先使用兑换码激活您的账户</p>
+              <p>兑换码入口：<a href="/profile.html">个人中心</a></p>
+            </div>
+          `;
+          return;
+        }
+        
         storyData = await api(`/api/stories/${storyId}`);
         renderStory();
         setupEventListeners();
       } catch (err) {
         showMessage(err.message, 'error');
-        setTimeout(() => {
-          window.location.href = '/stories.html';
-        }, 2000);
+        if (err.message.includes('激活')) {
+          // Show activation prompt
+          document.getElementById('storyContainer').innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+              <h2>⚠️ 账户未激活</h2>
+              <p>请先使用兑换码激活您的账户</p>
+              <p>兑换码入口：<a href="/profile.html">个人中心</a></p>
+            </div>
+          `;
+        }
       }
     }
 
