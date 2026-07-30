@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html>
-<head><title>Redeem Code</title></head>
+<head><title>Redeem with Auth</title></head>
 <body>
-<h2>兑换兑换码</h2>
-<p>当前用户ID: <span id="userId">-</span></p>
-<input type="text" id="codeInput" placeholder="输入兑换码" value="QBYAL9L4QN30">
-<button onclick="redeemCode()">兑换</button>
+<h2>兑换测试（带认证）</h2>
+<p>请先登录账号，然后访问此页面</p>
+<p>当前用户: <span id="userInfo">-</span></p>
+<p>Token: <span id="token">-</span></p>
+<hr>
+<input type="text" id="codeInput" placeholder="兑换码" style="width: 300px;">
+<button onclick="redeem()">兑换</button>
 <div id="result"></div>
 <script>
 function getToken() { return localStorage.getItem('storyspeak_token'); }
@@ -14,12 +17,19 @@ function getUser() {
   return u ? JSON.parse(u) : null;
 }
 
-async function redeemCode() {
+async function redeem() {
   const code = document.getElementById('codeInput').value;
   const token = getToken();
   const user = getUser();
-  document.getElementById('userId').textContent = user ? user.id + ' (' + user.username + ')' : '未登录';
+  
+  document.getElementById('userInfo').textContent = user ? user.username + ' (id=' + user.id + ')' : '未登录';
+  document.getElementById('token').textContent = token ? token.substring(0, 20) + '...' : '无';
   document.getElementById('result').innerHTML = '兑换中...';
+  
+  if (!token) {
+    document.getElementById('result').innerHTML = '<p style="color:red">请先登录！</p>';
+    return;
+  }
   
   try {
     const r = await fetch('/api/redeem', {
@@ -31,18 +41,17 @@ async function redeemCode() {
       body: JSON.stringify({code: code})
     });
     const data = await r.json();
-    document.getElementById('result').innerHTML = '<pre>状态: ' + r.status + '\n' + JSON.stringify(data, null, 2) + '</pre>';
+    document.getElementById('result').innerHTML = '<pre>HTTP ' + r.status + '\n' + JSON.stringify(data, null, 2) + '</pre>';
   } catch(e) {
-    document.getElementById('result').innerHTML = '<pre style="color:red">Error: ' + e.message + '</pre>';
+    document.getElementById('result').innerHTML = '<p style="color:red">Error: ' + e.message + '</p>';
   }
 }
 
-// Show current user on load
+// Show user info on load
 const user = getUser();
-document.getElementById('userId').textContent = user ? user.id + ' (' + user.username + ')' : '未登录';
-
-// Auto redeem on load
-redeemCode();
+const token = getToken();
+document.getElementById('userInfo').textContent = user ? user.username + ' (id=' + user.id + ', is_active=' + user.is_active + ')' : '未登录';
+document.getElementById('token').textContent = token ? token.substring(0, 20) + '...' : '无';
 </script>
 </body>
 </html>
