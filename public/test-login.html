@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><title>Login Test</title></head>
+<body>
+<h2>Login Debug Test</h2>
+<div id="result">Testing...</div>
+<script>
+fetch('/api/debug-login', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({login: 'admin', password: 'admin123'})
+}).then(r => r.json()).then(data => {
+  document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+}).catch(e => {
+  document.getElementById('result').innerHTML = '<pre style="color:red">Error: ' + e.message + '</pre>';
+});
+</script>
+</body>
+</html>
