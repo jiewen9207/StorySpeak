@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head><title>Redeem Code</title></head>
+<body>
+<h2>兑换兑换码</h2>
+<p>当前用户ID: <span id="userId">-</span></p>
+<input type="text" id="codeInput" placeholder="输入兑换码" value="QBYAL9L4QN30">
+<button onclick="redeemCode()">兑换</button>
+<div id="result"></div>
+<script>
+function getToken() { return localStorage.getItem('storyspeak_token'); }
+function getUser() { 
+  const u = localStorage.getItem('storyspeak_user');
+  return u ? JSON.parse(u) : null;
+}
+
+async function redeemCode() {
+  const code = document.getElementById('codeInput').value;
+  const token = getToken();
+  const user = getUser();
+  document.getElementById('userId').textContent = user ? user.id + ' (' + user.username + ')' : '未登录';
+  document.getElementById('result').innerHTML = '兑换中...';
+  
+  try {
+    const r = await fetch('/api/redeem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({code: code})
+    });
+    const data = await r.json();
+    document.getElementById('result').innerHTML = '<pre>状态: ' + r.status + '\n' + JSON.stringify(data, null, 2) + '</pre>';
+  } catch(e) {
+    document.getElementById('result').innerHTML = '<pre style="color:red">Error: ' + e.message + '</pre>';
+  }
+}
+
+// Show current user on load
+const user = getUser();
+document.getElementById('userId').textContent = user ? user.id + ' (' + user.username + ')' : '未登录';
+
+// Auto redeem on load
+redeemCode();
+</script>
+</body>
+</html>
