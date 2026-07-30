@@ -1,6 +1,4 @@
-const API_BASE = window.location.hostname.includes('pages.dev') 
-  ? 'https://storyspeak-worker.workers.dev' 
-  : '';
+const API_BASE = 'https://storyspeak-worker.ddeng5889.workers.dev';
 
 function getToken() {
   return localStorage.getItem('storyspeak_token');
