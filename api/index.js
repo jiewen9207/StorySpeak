@@ -192,7 +192,7 @@ module.exports = async (req, res) => {
 
   // Redeem code
   if (path === '/api/redeem' && method === 'POST') {
-    if (!authUser) return res.status(401).json({ error: '请先登录' });
+    if (!authUser) return res.status(401).json({ error: '请先登录', authHeader: authHeader });
     
     const { code } = req.body || {};
     if (!code) return res.status(400).json({ error: '请输入兑换码' });
