@@ -192,30 +192,29 @@ module.exports = async (req, res) => {
 
   // Redeem code
   if (path === '/api/redeem' && method === 'POST') {
-    if (!authUser) return res.status(401).json({ error: '请先登录', authHeader: authHeader });
+    if (!authUser) return res.status(401).json({ error: '请先登录' });
     
-    const { code } = req.body || {};
-    if (!code) return res.status(400).json({ error: '请输入兑换码' });
+    const { code: inputCode } = req.body || {};
+    if (!inputCode) return res.status(400).json({ error: '请输入兑换码' });
     
-    // Debug: test database connection
-    const testCode = code.trim().toUpperCase();
+    const normalizedCode = inputCode.trim().toUpperCase();
     
     if (supabase) {
-      const { data: redeemCode, error } = await supabase
+      const { data, error } = await supabase
         .from('redemption_codes')
         .select('*')
-        .eq('code', testCode)
-        .limit(1);
+        .eq('code', normalizedCode);
       
       if (error) return res.status(500).json({ error: '查询失败: ' + error.message });
-      const code = redeemCode && redeemCode.length > 0 ? redeemCode[0] : null;
-      if (!code) return res.status(400).json({ error: '兑换码不存在或已被使用' });
-      if (code.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
+      
+      const foundCode = data && data.length > 0 ? data[0] : null;
+      if (!foundCode) return res.status(400).json({ error: '兑换码不存在或已被使用' });
+      if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
       
       await supabase
         .from('redemption_codes')
         .update({ status: 'used', used_by: authUser.id })
-        .eq('code', code.code);
+        .eq('code', normalizedCode);
       
       await supabase
         .from('users')
@@ -224,10 +223,10 @@ module.exports = async (req, res) => {
       
       return res.json({ success: true, message: '兑换码激活成功！' });
     } else {
-      if (!demoCodes[testCode] || demoCodes[testCode].status === 'used') {
+      if (!demoCodes[normalizedCode] || demoCodes[normalizedCode].status === 'used') {
         return res.status(400).json({ error: '兑换码无效或已被使用' });
       }
-      demoCodes[testCode].status = 'used';
+      demoCodes[normalizedCode].status = 'used';
       authUser.is_active = true;
       return res.json({ success: true, message: '兑换码激活成功！' });
     }
