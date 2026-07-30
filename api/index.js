@@ -200,17 +200,32 @@ module.exports = async (req, res) => {
     
     const normalizedCode = inputCode.trim().toUpperCase();
     
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('redemption_codes')
-        .select('*')
-        .eq('code', normalizedCode);
-      
-      if (error) return res.status(500).json({ error: '查询失败: ' + error.message, userId: authUser.id });
-      
-      const foundCode = data && data.length > 0 ? data[0] : null;
-      if (!foundCode) return res.status(400).json({ error: '兑换码不存在', debug: { code: normalizedCode, dataLength: data?.length } });
-      if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
+    // Check if supabase is initialized
+    if (!supabase) {
+      return res.status(500).json({ error: '数据库未连接', supabaseStatus: !!supabase });
+    }
+    
+    // Test direct query first
+    const testResult = await supabase
+      .from('redemption_codes')
+      .select('code')
+      .limit(1);
+    
+    if (testResult.error) {
+      return res.status(500).json({ error: '数据库测试失败', testError: testResult.error.message });
+    }
+    
+    // Now query for the specific code
+    const { data, error } = await supabase
+      .from('redemption_codes')
+      .select('*')
+      .eq('code', normalizedCode);
+    
+    if (error) return res.status(500).json({ error: '查询失败: ' + error.message, userId: authUser.id });
+    
+    const foundCode = data && data.length > 0 ? data[0] : null;
+    if (!foundCode) return res.status(400).json({ error: '兑换码不存在', debug: { code: normalizedCode, dataLength: data?.length, testCount: testResult.data?.length } });
+    if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
       
       // Update redemption code
       await supabase
