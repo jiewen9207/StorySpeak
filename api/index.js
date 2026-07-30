@@ -193,38 +193,34 @@ module.exports = async (req, res) => {
   // Redeem code
   if (path === '/api/redeem' && method === 'POST') {
     const authToken = authHeader ? authHeader.split(' ')[1] : null;
-    if (!authUser) return res.status(401).json({ error: '请先登录', token: authToken ? 'present' : 'missing' });
+    if (!authUser) return res.status(401).json({ error: '请先登录' });
     
-    const { code: inputCode } = req.body || {};
+    // Get raw body
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch(e) { body = {}; }
+    }
+    
+    const inputCode = body?.code || '';
     if (!inputCode) return res.status(400).json({ error: '请输入兑换码' });
     
     const normalizedCode = inputCode.trim().toUpperCase();
     
     // Check if supabase is initialized
     if (!supabase) {
-      return res.status(500).json({ error: '数据库未连接', supabaseStatus: !!supabase });
+      return res.status(500).json({ error: '数据库未连接' });
     }
     
-    // Test direct query first
-    const testResult = await supabase
-      .from('redemption_codes')
-      .select('code')
-      .limit(1);
-    
-    if (testResult.error) {
-      return res.status(500).json({ error: '数据库测试失败', testError: testResult.error.message });
-    }
-    
-    // Now query for the specific code
+    // Query for the specific code
     const { data, error } = await supabase
       .from('redemption_codes')
       .select('*')
       .eq('code', normalizedCode);
     
-    if (error) return res.status(500).json({ error: '查询失败: ' + error.message, userId: authUser.id });
+    if (error) return res.status(500).json({ error: '查询失败', detail: error.message });
     
     const foundCode = data && data.length > 0 ? data[0] : null;
-    if (!foundCode) return res.status(400).json({ error: '兑换码不存在', debug: { code: normalizedCode, dataLength: data?.length, testCount: testResult.data?.length } });
+    if (!foundCode) return res.status(400).json({ error: '兑换码不存在', received: normalizedCode });
     if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
     
     // Update redemption code
