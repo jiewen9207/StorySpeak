@@ -1,16 +1,9 @@
 {
   "version": 2,
-  "name": "storyspeak",
-  "builds": [
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.js" }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
+  "builds": [
+    { "src": "public/**", "use": "@vercel/static" }
   ]
 }
