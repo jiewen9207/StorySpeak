@@ -192,51 +192,26 @@ module.exports = async (req, res) => {
 
   // Redeem code
   if (path === '/api/redeem' && method === 'POST') {
-    const authToken = authHeader ? authHeader.split(' ')[1] : null;
     if (!authUser) return res.status(401).json({ error: '请先登录' });
     
-    // Get raw body
-    let body = req.body;
-    if (typeof body === 'string') {
-      try { body = JSON.parse(body); } catch(e) { body = {}; }
-    }
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ error: '请输入兑换码' });
     
-    const inputCode = body?.code || '';
-    if (!inputCode) return res.status(400).json({ error: '请输入兑换码' });
-    
-    const normalizedCode = inputCode.trim().toUpperCase();
-    
-    // Debug: check supabase
-    const debug = {
-      supabaseExists: !!supabase,
-      supabaseUrl: supabaseUrl ? 'set' : 'missing',
-      supabaseKey: supabaseKey ? 'set' : 'missing',
-      receivedCode: normalizedCode
-    };
+    const normalizedCode = code.trim().toUpperCase();
     
     if (!supabase) {
-      return res.status(500).json({ error: '数据库未连接', debug });
+      return res.status(500).json({ error: '数据库未连接' });
     }
     
-    // Try different query approaches
-    // First, check if table exists
-    const checkQuery = await supabase.from('redemption_codes').select('id').limit(1);
-    debug.checkQuerySuccess = !checkQuery.error;
-    debug.checkQueryCount = checkQuery.data?.length || 0;
-    
-    // Now try the specific query
     const { data, error } = await supabase
       .from('redemption_codes')
       .select('*')
       .eq('code', normalizedCode);
     
-    debug.queryError = error?.message || null;
-    debug.queryResult = data?.length || 0;
-    
-    if (error) return res.status(500).json({ error: '查询失败', debug });
+    if (error) return res.status(500).json({ error: '查询失败' });
     
     const foundCode = data && data.length > 0 ? data[0] : null;
-    if (!foundCode) return res.status(400).json({ error: '兑换码不存在', debug });
+    if (!foundCode) return res.status(400).json({ error: '兑换码不存在' });
     if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
     
     // Update redemption code
@@ -251,7 +226,7 @@ module.exports = async (req, res) => {
       .update({ is_active: true })
       .eq('id', authUser.id);
     
-    return res.json({ success: true, message: '兑换码激活成功！', debug });
+    return res.json({ success: true, message: '兑换码激活成功！' });
   }
 
   // Get stories

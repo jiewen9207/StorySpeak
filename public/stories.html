@@ -193,11 +193,18 @@
         return;
       }
       try {
-        await api('/api/redeem', {
+        const result = await api('/api/redeem', {
           method: 'POST',
           body: { code }
         });
         showMessage('兑换码激活成功！', 'success');
+        
+        // Update localStorage user data
+        const userData = JSON.parse(localStorage.getItem('storyspeak_user') || '{}');
+        userData.is_active = true;
+        localStorage.setItem('storyspeak_user', JSON.stringify(userData));
+        
+        // Refresh the page after a short delay
         setTimeout(() => {
           window.location.reload();
         }, 1000);
