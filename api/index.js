@@ -55,6 +55,20 @@ module.exports = async (req, res) => {
   const authHeader = req.headers.authorization;
   const authUser = await getAuthUser(authHeader);
 
+  // Test redeem query
+  if (path === '/api/test-code' && method === 'POST') {
+    const { code } = req.body || {};
+    const testCode = code.trim().toUpperCase();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('redemption_codes')
+        .select('*')
+        .eq('code', testCode);
+      return res.json({ testCode, found: data?.length, data: data?.[0], error: error?.message });
+    }
+    return res.json({ error: 'no supabase' });
+  }
+
   // Debug endpoint
   if (path === '/api/debug' && method === 'GET') {
     let testResult = 'not tested';
