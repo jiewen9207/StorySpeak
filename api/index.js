@@ -226,28 +226,20 @@ module.exports = async (req, res) => {
     const foundCode = data && data.length > 0 ? data[0] : null;
     if (!foundCode) return res.status(400).json({ error: '兑换码不存在', debug: { code: normalizedCode, dataLength: data?.length, testCount: testResult.data?.length } });
     if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
-      
-      // Update redemption code
-      await supabase
-        .from('redemption_codes')
-        .update({ status: 'used', used_by: authUser.id })
-        .eq('code', normalizedCode);
-      
-      // Update user
-      const updateResult = await supabase
-        .from('users')
-        .update({ is_active: true })
-        .eq('id', authUser.id);
-      
-      return res.json({ success: true, message: '兑换码激活成功！', debug: { userId: authUser.id, updated: updateResult.error ? updateResult.error.message : 'ok' } });
-    } else {
-      if (!demoCodes[normalizedCode] || demoCodes[normalizedCode].status === 'used') {
-        return res.status(400).json({ error: '兑换码无效或已被使用' });
-      }
-      demoCodes[normalizedCode].status = 'used';
-      authUser.is_active = true;
-      return res.json({ success: true, message: '兑换码激活成功！' });
-    }
+    
+    // Update redemption code
+    await supabase
+      .from('redemption_codes')
+      .update({ status: 'used', used_by: authUser.id })
+      .eq('code', normalizedCode);
+    
+    // Update user
+    await supabase
+      .from('users')
+      .update({ is_active: true })
+      .eq('id', authUser.id);
+    
+    return res.json({ success: true, message: '兑换码激活成功！' });
   }
 
   // Get stories
