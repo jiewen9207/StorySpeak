@@ -191,16 +191,17 @@ module.exports = async (req, res) => {
         .from('redemption_codes')
         .select('*')
         .eq('code', testCode)
-        .single();
+        .limit(1);
       
       if (error) return res.status(500).json({ error: '查询失败: ' + error.message });
-      if (!redeemCode) return res.status(400).json({ error: '兑换码不存在或已被使用', code: testCode });
-      if (redeemCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
+      const code = redeemCode && redeemCode.length > 0 ? redeemCode[0] : null;
+      if (!code) return res.status(400).json({ error: '兑换码不存在或已被使用' });
+      if (code.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
       
       await supabase
         .from('redemption_codes')
         .update({ status: 'used', used_by: authUser.id })
-        .eq('code', testCode);
+        .eq('code', code.code);
       
       await supabase
         .from('users')
