@@ -206,21 +206,37 @@ module.exports = async (req, res) => {
     
     const normalizedCode = inputCode.trim().toUpperCase();
     
-    // Check if supabase is initialized
+    // Debug: check supabase
+    const debug = {
+      supabaseExists: !!supabase,
+      supabaseUrl: supabaseUrl ? 'set' : 'missing',
+      supabaseKey: supabaseKey ? 'set' : 'missing',
+      receivedCode: normalizedCode
+    };
+    
     if (!supabase) {
-      return res.status(500).json({ error: '数据库未连接' });
+      return res.status(500).json({ error: '数据库未连接', debug });
     }
     
-    // Query for the specific code
+    // Try different query approaches
+    // First, check if table exists
+    const checkQuery = await supabase.from('redemption_codes').select('id').limit(1);
+    debug.checkQuerySuccess = !checkQuery.error;
+    debug.checkQueryCount = checkQuery.data?.length || 0;
+    
+    // Now try the specific query
     const { data, error } = await supabase
       .from('redemption_codes')
       .select('*')
       .eq('code', normalizedCode);
     
-    if (error) return res.status(500).json({ error: '查询失败', detail: error.message });
+    debug.queryError = error?.message || null;
+    debug.queryResult = data?.length || 0;
+    
+    if (error) return res.status(500).json({ error: '查询失败', debug });
     
     const foundCode = data && data.length > 0 ? data[0] : null;
-    if (!foundCode) return res.status(400).json({ error: '兑换码不存在', received: normalizedCode });
+    if (!foundCode) return res.status(400).json({ error: '兑换码不存在', debug });
     if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
     
     // Update redemption code
@@ -235,7 +251,7 @@ module.exports = async (req, res) => {
       .update({ is_active: true })
       .eq('id', authUser.id);
     
-    return res.json({ success: true, message: '兑换码激活成功！' });
+    return res.json({ success: true, message: '兑换码激活成功！', debug });
   }
 
   // Get stories
