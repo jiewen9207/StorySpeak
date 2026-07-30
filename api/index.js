@@ -73,9 +73,12 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: '用户名或邮箱已被注册' });
       }
       
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      
       const { data, error } = await supabase
         .from('users')
-        .insert({ username, email, password, is_admin: 0, is_active: 0 })
+        .insert({ username, email, password: hashedPassword, is_admin: 0, is_active: 0 })
         .select()
         .single();
       
@@ -107,7 +110,8 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: '用户不存在' });
       }
       
-      if (user.password !== password) {
+      const bcrypt = require('bcryptjs');
+      if (!bcrypt.compareSync(password, user.password)) {
         return res.status(400).json({ error: '密码错误' });
       }
       
