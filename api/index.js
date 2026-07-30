@@ -17,13 +17,25 @@ const demoCodes = {
 };
 
 // Auth helper
-const getAuthUser = (authHeader) => {
+const getAuthUser = async (authHeader) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.split(' ')[1];
+  
   if (token.startsWith('demo_')) {
     const userId = parseInt(token.replace('demo_', ''));
     return { id: userId, ...demoUsers[userId] };
   }
+  
+  if (token.startsWith('supabase_') && supabase) {
+    const userId = token.replace('supabase_', '');
+    const { data } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', parseInt(userId))
+      .single();
+    return data || null;
+  }
+  
   return null;
 };
 
@@ -39,7 +51,7 @@ module.exports = async (req, res) => {
   const path = req.url.split('?')[0];
   const method = req.method;
   const authHeader = req.headers.authorization;
-  const authUser = getAuthUser(authHeader);
+  const authUser = await getAuthUser(authHeader);
 
   // Register
   if (path === '/api/register' && method === 'POST') {
