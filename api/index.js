@@ -292,6 +292,8 @@ module.exports = async (req, res) => {
 
   // Get profile
   if (path === '/api/user/profile' && method === 'GET' && authUser) {
+    let userData = { ...authUser };
+    let totalStories = 0;
     if (supabase) {
       const { data: user } = await supabase
         .from('users')
@@ -299,13 +301,15 @@ module.exports = async (req, res) => {
         .eq('id', authUser.id)
         .single();
       if (user) {
+        userData = { ...user };
         const { count } = await supabase
           .from('stories')
           .select('*', { count: 'exact', head: true });
-        return res.json({ ...user, stats: { totalStories: count, completedStories: 0, totalTime: 0, favorites: 0 } });
+        totalStories = count || 0;
       }
     }
-    return res.json(authUser);
+    userData.stats = { totalStories, completedStories: 0, totalTime: 0, favorites: 0 };
+    return res.json(userData);
   }
 
   // Get favorites
