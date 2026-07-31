@@ -1,33 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
-const nodemailer = require('nodemailer');
 let bcrypt;
 try { bcrypt = require('bcryptjs'); } catch(e) { bcrypt = null; console.log('bcrypt not available'); }
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Email settings
-const EMAIL_HOST = 'smtp.163.com';
-const EMAIL_PORT = 465;
-const EMAIL_USER = process.env.EMAIL_USER || 'm13267093422_1@163.com';
-const EMAIL_PASS = process.env.EMAIL_PASS || 'SWR35qvxpnqnZdJJ';
-
-// Create email transporter
-let transporter = null;
-if (EMAIL_USER && EMAIL_PASS) {
-  transporter = nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: EMAIL_PORT,
-    secure: true,
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS
-    }
-  });
-}
-
-// In-memory store for reset codes (expires in 5 minutes)
-const resetCodes = new Map();
 
 let supabase = null;
 
@@ -335,45 +311,8 @@ module.exports = async (req, res) => {
   // Get favorites
   if (path === '/api/favorites' && method === 'GET' && authUser) {
     if (!supabase) return res.json([]);
+    // For now return empty array - favorites feature not fully implemented
     return res.json([]);
-  }
-
-  // Get words (for profile page)
-  if (path === '/api/words' && method === 'GET' && authUser) {
-    if (!supabase) return res.json([]);
-    return res.json([]);
-  }
-
-  // Reset password (no verification code needed)
-  if (path === '/api/reset-password' && method === 'POST') {
-    const { email, newPassword } = req.body || {};
-    if (!email || !newPassword) {
-      return res.status(400).json({ error: '请输入邮箱和新密码' });
-    }
-    
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: '密码至少6位' });
-    }
-    
-    if (supabase) {
-      const { data: user } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-      
-      if (!user) {
-        return res.status(400).json({ error: '该邮箱未注册' });
-      }
-      
-      await supabase
-        .from('users')
-        .update({ password: newPassword })
-        .eq('email', email);
-      
-      return res.json({ success: true, message: '密码重置成功，请使用新密码登录' });
-    }
-    return res.status(500).json({ error: '服务暂不可用' });
   }
 
   // Admin: Generate codes

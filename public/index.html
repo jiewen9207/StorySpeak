@@ -27,9 +27,6 @@
           <input type="password" id="loginPassword" placeholder="请输入密码" required>
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">登录</button>
-        <div style="text-align: center; margin-top: 12px;">
-          <a href="#" id="forgotPasswordLink" style="color: #667eea; font-size: 13px;">忘记密码？</a>
-        </div>
       </form>
 
       <form id="registerForm" class="auth-form">
@@ -50,28 +47,6 @@
           注册后，请使用从小红书店铺购买的兑换码激活账户
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- Forgot Password Modal -->
-  <div id="forgotModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 400px;">
-      <div class="modal-header">
-        <h2>找回密码</h2>
-        <button class="modal-close" onclick="closeForgotModal()">✕</button>
-      </div>
-      <div style="padding: 20px;">
-        <div class="form-group">
-          <label>邮箱地址</label>
-          <input type="email" id="forgotEmail" placeholder="请输入注册时的邮箱" style="width: 100%; padding: 12px; border: 2px solid #e0e4e8; border-radius: 8px;">
-        </div>
-        <div class="form-group">
-          <label>新密码 (至少6位)</label>
-          <input type="password" id="newPassword" placeholder="请输入新密码" minlength="6" style="width: 100%; padding: 12px; border: 2px solid #e0e4e8; border-radius: 8px;">
-        </div>
-        <button id="resetPasswordBtn" class="btn btn-primary" style="width: 100%;">重置密码</button>
-        <div id="forgotMessage" style="margin-top: 12px; text-align: center;"></div>
-      </div>
     </div>
   </div>
 
@@ -144,52 +119,6 @@
         })
         .catch(() => {});
     }
-
-    // Forgot Password
-    document.getElementById('forgotPasswordLink').addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('forgotModal').style.display = 'flex';
-    });
-
-    function closeForgotModal() {
-      document.getElementById('forgotModal').style.display = 'none';
-      document.getElementById('forgotEmail').value = '';
-      document.getElementById('newPassword').value = '';
-      document.getElementById('forgotMessage').innerHTML = '';
-    }
-
-    document.getElementById('resetPasswordBtn').addEventListener('click', async () => {
-      const email = document.getElementById('forgotEmail').value.trim();
-      const newPassword = document.getElementById('newPassword').value;
-      
-      if (!email || !newPassword) {
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">请输入邮箱和新密码</span>';
-        return;
-      }
-      
-      if (newPassword.length < 6) {
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">密码至少6位</span>';
-        return;
-      }
-      
-      document.getElementById('resetPasswordBtn').textContent = '处理中...';
-      document.getElementById('resetPasswordBtn').disabled = true;
-      
-      try {
-        await api('/api/reset-password', {
-          method: 'POST',
-          body: { email, newPassword }
-        });
-        
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: green;">密码重置成功！请使用新密码登录。</span>';
-        setTimeout(closeForgotModal, 2000);
-      } catch (err) {
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">' + err.message + '</span>';
-      }
-      
-      document.getElementById('resetPasswordBtn').textContent = '重置密码';
-      document.getElementById('resetPasswordBtn').disabled = false;
-    });
   </script>
 </body>
 </html>
