@@ -191,38 +191,37 @@
     }
 
     async function playSentence(index) {
-      console.log('playSentence called:', index);
       const sentence = storyData.sentences[index];
-      if (!sentence) { console.log('No sentence found'); return; }
+      if (!sentence) return;
       const text = sentence.english;
-      console.log('Playing:', text);
       
-      // Get available voices
+      // Stop any current speech
+      window.speechSynthesis.cancel();
+      
+      // Small delay to ensure cancel completes
+      await new Promise(r => setTimeout(r, 100));
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      
+      // Try to find Microsoft English voice first, then Google, then any English
       const voices = window.speechSynthesis.getVoices();
-      console.log('Available voices:', voices.length);
-      voices.slice(0, 5).forEach((v, i) => console.log('Voice ' + i + ':', v.name, v.lang));
+      const preferredVoice = voices.find(v => v.name.includes('Microsoft') && v.lang.includes('en')) ||
+                           voices.find(v => v.name.includes('Google') && v.lang.includes('en')) ||
+                           voices.find(v => v.lang.includes('en'));
+      if (preferredVoice) utterance.voice = preferredVoice;
       
-      // Try to find English voice
-      const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-      console.log('Using voice:', enVoice ? enVoice.name : 'none');
+      utterance.onstart = () => showMessage('🔊 播放: ' + text.substring(0, 25) + '...', 'success');
+      utterance.onend = () => console.log('Speech completed');
+      utterance.onerror = (e) => {
+        console.error('Speech error:', e.error);
+        showMessage('播放失败，请检查浏览器设置', 'error');
+      };
       
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
-        utterance.rate = 0.9;
-        if (enVoice) utterance.voice = enVoice;
-        
-        utterance.onstart = () => { console.log('Speech started'); showMessage('播放: ' + text.substring(0,20), 'success'); };
-        utterance.onerror = (e) => { console.error('Speech error:', e.error); showMessage('播放失败: ' + e.error, 'error'); };
-        utterance.onend = () => { console.log('Speech ended'); };
-        
-        window.speechSynthesis.speak(utterance);
-        console.log('speak() called');
-      } else {
-        console.log('speechSynthesis NOT available');
-        showMessage('浏览器不支持语音', 'error');
-      }
+      window.speechSynthesis.speak(utterance);
+      currentSentenceIndex = index;
       saveProgress();
     }
 
