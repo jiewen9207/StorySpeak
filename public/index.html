@@ -184,15 +184,10 @@
           body: { email }
         });
         
-        // Show debug code for testing (remove in production)
-        if (result.debug_code) {
-          document.getElementById('forgotMessage').innerHTML = `<span style="color: green;">验证码已发送！(测试码: ${result.debug_code})</span>`;
-        } else {
-          document.getElementById('forgotMessage').innerHTML = '<span style="color: green;">验证码已发送！</span>';
-        }
+        document.getElementById('forgotMessage').innerHTML = '<span style="color: green;">' + result.message + '</span>';
         document.getElementById('resetSection').style.display = 'block';
       } catch (err) {
-        document.getElementById('forgotMessage').innerHTML = `<span style="color: red;">${err.message}</span>`;
+        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">' + err.message + '</span>';
       }
       
       document.getElementById('sendCodeBtn').textContent = '发送验证码';

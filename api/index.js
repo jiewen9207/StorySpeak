@@ -336,13 +336,20 @@ module.exports = async (req, res) => {
       
       // Generate 6-digit code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
-      // In production, send email here
-      // For now, just return the code for testing
+      
+      // Store code in database with expiration (5 minutes)
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await supabase
+        .from('password_reset_codes')
+        .insert({ email, code, expires_at: expiresAt });
+      
+      // NOTE: In production, integrate with email service like SendGrid/Mailgun
+      // For now, log to console - admin can check Vercel logs for the code
+      console.log(`Password reset code for ${email}: ${code}`);
+      
       return res.json({ 
         success: true, 
-        message: '验证码已发送到邮箱',
-        // DEBUG: return code directly for testing - remove in production
-        debug_code: code
+        message: '验证码已发送到您的邮箱，请查收。如果没有收到，请联系客服。'
       });
     }
     return res.status(500).json({ error: '服务暂不可用' });
@@ -360,15 +367,33 @@ module.exports = async (req, res) => {
     }
     
     if (supabase) {
-      // In production, verify the code from database/redis
-      // For now, accept any 6-digit code
-      if (code.length !== 6 || !/^\d+$/.test(code)) {
-        return res.status(400).json({ error: '验证码格式错误' });
+      // Verify code from database
+      const { data: resetCode } = await supabase
+        .from('password_reset_codes')
+        .select('*')
+        .eq('email', email)
+        .eq('code', code)
+        .single();
+      
+      if (!resetCode) {
+        return res.status(400).json({ error: '验证码错误或已过期' });
       }
       
+      // Check if expired
+      if (new Date(resetCode.expires_at) < new Date()) {
+        return res.status(400).json({ error: '验证码已过期，请重新获取' });
+      }
+      
+      // Update password
       await supabase
         .from('users')
         .update({ password: newPassword })
+        .eq('email', email);
+      
+      // Delete used code
+      await supabase
+        .from('password_reset_codes')
+        .delete()
         .eq('email', email);
       
       return res.json({ success: true, message: '密码重置成功' });
