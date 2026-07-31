@@ -93,13 +93,17 @@ module.exports = async (req, res) => {
   // Debug: check specific user
   if (path === '/api/debug-user' && method === 'GET') {
     if (!authUser) return res.json({ error: 'no auth' });
+    // Fetch fresh from database
+    let freshUser = authUser;
+    if (supabase) {
+      const { data } = await supabase.from('users').select('*').eq('id', authUser.id).single();
+      if (data) freshUser = data;
+    }
     return res.json({
       authUser: authUser,
-      idType: typeof authUser.id,
-      isActiveType: typeof authUser.is_active,
-      isActiveValue: authUser.is_active,
-      isActiveEquals1: authUser.is_active === 1,
-      isActiveEqualsTrue: authUser.is_active === true
+      freshUser: freshUser,
+      isActive: freshUser.is_active,
+      isActiveType: typeof freshUser.is_active
     });
   }
 
