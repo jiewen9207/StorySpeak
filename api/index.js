@@ -214,29 +214,38 @@ module.exports = async (req, res) => {
     if (!foundCode) return res.status(400).json({ error: '兑换码不存在' });
     if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
     
+    // Log authUser for debugging
+    console.log('Redeem - authUser:', JSON.stringify(authUser));
+    console.log('Redeem - authUser.id:', authUser.id, typeof authUser.id);
+    
     // Update redemption code
     const updateCodeResult = await supabase
       .from('redemption_codes')
       .update({ status: 'used', used_by: authUser.id })
       .eq('code', normalizedCode);
     
-    // Update user - ensure id is number
-    const userId = typeof authUser.id === 'string' ? parseInt(authUser.id) : authUser.id;
+    // Update user - try with the exact id from authUser
+    const userIdNum = Number(authUser.id);
+    console.log('Updating user with id:', userIdNum);
+    
     const updateUserResult = await supabase
       .from('users')
       .update({ is_active: true })
-      .eq('id', userId);
+      .eq('id', userIdNum);
+    
+    console.log('Update user result:', JSON.stringify(updateUserResult));
     
     // Verify the update
     const { data: updatedUser } = await supabase
       .from('users')
       .select('id, is_active')
-      .eq('id', userId)
+      .eq('id', userIdNum)
       .single();
     
     return res.json({ 
       success: true, 
       message: '兑换码激活成功！',
+      userId: userIdNum,
       userUpdated: updatedUser
     });
   }
