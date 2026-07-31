@@ -187,33 +187,24 @@
     }
 
     async function playSentence(index) {
+      console.log('playSentence called:', index);
       const sentence = storyData.sentences[index];
-      if (!sentence) return;
-      
+      if (!sentence) { console.log('No sentence found'); return; }
       const text = sentence.english;
-      
+      console.log('Playing:', text);
+      console.log('speechSynthesis available:', 'speechSynthesis' in window);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
         utterance.rate = 0.9;
-        utterance.pitch = 1;
-        
-        utterance.onstart = () => {
-          showMessage('正在播放: ' + text.substring(0, 30) + '...', 'success');
-        };
-        
-        utterance.onerror = (e) => {
-          console.error('Speech error:', e);
-          showMessage('播放失败，请检查浏览器语音设置', 'error');
-        };
-        
+        utterance.onstart = () => { console.log('Speech started'); showMessage('播放: ' + text.substring(0,20), 'success'); };
+        utterance.onerror = (e) => { console.error('Speech error:', e); showMessage('播放失败', 'error'); };
         window.speechSynthesis.speak(utterance);
       } else {
-        showMessage('您的浏览器不支持语音播放', 'error');
+        console.log('speechSynthesis NOT available');
+        showMessage('浏览器不支持语音', 'error');
       }
-      
-      currentSentenceIndex = index;
       saveProgress();
     }
 
