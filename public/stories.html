@@ -71,10 +71,11 @@
 
       try {
         const user = await api('/api/user/profile');
+        const isActive = user.is_active === 1 || user.is_active === true;
         if (user.is_admin) {
           document.getElementById('adminLink').style.display = 'inline';
         }
-        if (!user.is_active && !user.is_admin) {
+        if (!isActive && !user.is_admin) {
           document.getElementById('codeRedeemSection').style.display = 'block';
         }
         displayProfile(user);
@@ -87,11 +88,13 @@
     function displayProfile(user) {
       const el = document.getElementById('profileInfo');
       el.style.display = 'block';
+      const username = user.username || user.email || '用户';
+      const isActive = user.is_active === 1 || user.is_active === true;
       el.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
           <div>
-            <h2>欢迎, ${user.username} 👋</h2>
-            <p style="color: #888;">${user.is_active ? '✓ 已激活' : '⚠️ 未激活'}</p>
+            <h2>欢迎, ${username} 👋</h2>
+            <p style="color: #888;">${isActive ? '✓ 已激活' : '⚠️ 未激活'}</p>
           </div>
           <div style="display: flex; gap: 24px; flex-wrap: wrap;">
             <div class="stat-item"><strong>${user.stats.totalStories}</strong> 学习故事</div>
