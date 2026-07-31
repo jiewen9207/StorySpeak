@@ -7,11 +7,5 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "src": "/(.*)", "dest": "/public/$1" }
-  ],
-  "env": {
-    "SUPABASE_URL": "https://ylpeaimlmlruwookbcxk.supabase.co",
-    "SUPABASE_SERVICE_ROLE_KEY": "sb_secret_4uLoN1Y-clm-KPgc-_KIgA_HTD0AtIU",
-    "EMAIL_USER": "m13267093422_1@163.com",
-    "EMAIL_PASS": "SWR35qvxpnqnZdJJ"
-  }
+  ]
 }
