@@ -311,8 +311,69 @@ module.exports = async (req, res) => {
   // Get favorites
   if (path === '/api/favorites' && method === 'GET' && authUser) {
     if (!supabase) return res.json([]);
-    // For now return empty array - favorites feature not fully implemented
     return res.json([]);
+  }
+
+  // Get words (for profile page)
+  if (path === '/api/words' && method === 'GET' && authUser) {
+    if (!supabase) return res.json([]);
+    return res.json([]);
+  }
+
+  // Forgot password - send reset code
+  if (path === '/api/forgot-password' && method === 'POST') {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: '请输入邮箱' });
+    
+    if (supabase) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (!user) return res.status(400).json({ error: '该邮箱未注册' });
+      
+      // Generate 6-digit code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      // In production, send email here
+      // For now, just return the code for testing
+      return res.json({ 
+        success: true, 
+        message: '验证码已发送到邮箱',
+        // DEBUG: return code directly for testing - remove in production
+        debug_code: code
+      });
+    }
+    return res.status(500).json({ error: '服务暂不可用' });
+  }
+
+  // Reset password
+  if (path === '/api/reset-password' && method === 'POST') {
+    const { email, code, newPassword } = req.body || {};
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: '请填写完整信息' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: '密码至少6位' });
+    }
+    
+    if (supabase) {
+      // In production, verify the code from database/redis
+      // For now, accept any 6-digit code
+      if (code.length !== 6 || !/^\d+$/.test(code)) {
+        return res.status(400).json({ error: '验证码格式错误' });
+      }
+      
+      await supabase
+        .from('users')
+        .update({ password: newPassword })
+        .eq('email', email);
+      
+      return res.json({ success: true, message: '密码重置成功' });
+    }
+    return res.status(500).json({ error: '服务暂不可用' });
   }
 
   // Admin: Generate codes

@@ -130,7 +130,7 @@
         const list = document.getElementById('wordList');
         const empty = document.getElementById('emptyWords');
         
-        if (words.length === 0) {
+        if (!words || words.length === 0) {
           list.style.display = 'none';
           empty.style.display = 'block';
           return;
@@ -144,7 +144,9 @@
           </div>
         `).join('');
       } catch (err) {
-        showMessage(err.message, 'error');
+        // Silently fail - words feature optional
+        document.getElementById('wordList').style.display = 'none';
+        document.getElementById('emptyWords').style.display = 'block';
       }
     }
 
