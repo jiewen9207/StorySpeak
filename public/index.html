@@ -65,19 +65,11 @@
           <label>邮箱地址</label>
           <input type="email" id="forgotEmail" placeholder="请输入注册时的邮箱" style="width: 100%; padding: 12px; border: 2px solid #e0e4e8; border-radius: 8px;">
         </div>
-        <button id="sendCodeBtn" class="btn btn-primary" style="width: 100%;">发送验证码</button>
-        
-        <div id="resetSection" style="display: none; margin-top: 16px;">
-          <div class="form-group">
-            <label>验证码</label>
-            <input type="text" id="resetCode" placeholder="请输入6位验证码" maxlength="6" style="width: 100%; padding: 12px; border: 2px solid #e0e4e8; border-radius: 8px;">
-          </div>
-          <div class="form-group">
-            <label>新密码 (至少6位)</label>
-            <input type="password" id="newPassword" placeholder="请输入新密码" minlength="6" style="width: 100%; padding: 12px; border: 2px solid #e0e4e8; border-radius: 8px;">
-          </div>
-          <button id="resetPasswordBtn" class="btn btn-primary" style="width: 100%;">重置密码</button>
+        <div class="form-group">
+          <label>新密码 (至少6位)</label>
+          <input type="password" id="newPassword" placeholder="请输入新密码" minlength="6" style="width: 100%; padding: 12px; border: 2px solid #e0e4e8; border-radius: 8px;">
         </div>
+        <button id="resetPasswordBtn" class="btn btn-primary" style="width: 100%;">重置密码</button>
         <div id="forgotMessage" style="margin-top: 12px; text-align: center;"></div>
       </div>
     </div>
@@ -162,59 +154,41 @@
     function closeForgotModal() {
       document.getElementById('forgotModal').style.display = 'none';
       document.getElementById('forgotEmail').value = '';
-      document.getElementById('resetCode').value = '';
       document.getElementById('newPassword').value = '';
-      document.getElementById('resetSection').style.display = 'none';
       document.getElementById('forgotMessage').innerHTML = '';
     }
 
-    document.getElementById('sendCodeBtn').addEventListener('click', async () => {
-      const email = document.getElementById('forgotEmail').value.trim();
-      if (!email) {
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">请输入邮箱</span>';
-        return;
-      }
-      
-      document.getElementById('sendCodeBtn').textContent = '发送中...';
-      document.getElementById('sendCodeBtn').disabled = true;
-      
-      try {
-        const result = await api('/api/forgot-password', {
-          method: 'POST',
-          body: { email }
-        });
-        
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: green;">' + result.message + '</span>';
-        document.getElementById('resetSection').style.display = 'block';
-      } catch (err) {
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">' + err.message + '</span>';
-      }
-      
-      document.getElementById('sendCodeBtn').textContent = '发送验证码';
-      document.getElementById('sendCodeBtn').disabled = false;
-    });
-
     document.getElementById('resetPasswordBtn').addEventListener('click', async () => {
       const email = document.getElementById('forgotEmail').value.trim();
-      const code = document.getElementById('resetCode').value.trim();
       const newPassword = document.getElementById('newPassword').value;
       
-      if (!code || !newPassword) {
-        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">请填写完整信息</span>';
+      if (!email || !newPassword) {
+        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">请输入邮箱和新密码</span>';
         return;
       }
+      
+      if (newPassword.length < 6) {
+        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">密码至少6位</span>';
+        return;
+      }
+      
+      document.getElementById('resetPasswordBtn').textContent = '处理中...';
+      document.getElementById('resetPasswordBtn').disabled = true;
       
       try {
         await api('/api/reset-password', {
           method: 'POST',
-          body: { email, code, newPassword }
+          body: { email, newPassword }
         });
         
         document.getElementById('forgotMessage').innerHTML = '<span style="color: green;">密码重置成功！请使用新密码登录。</span>';
         setTimeout(closeForgotModal, 2000);
       } catch (err) {
-        document.getElementById('forgotMessage').innerHTML = `<span style="color: red;">${err.message}</span>`;
+        document.getElementById('forgotMessage').innerHTML = '<span style="color: red;">' + err.message + '</span>';
       }
+      
+      document.getElementById('resetPasswordBtn').textContent = '重置密码';
+      document.getElementById('resetPasswordBtn').disabled = false;
     });
   </script>
 </body>

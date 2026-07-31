@@ -344,10 +344,16 @@ module.exports = async (req, res) => {
     return res.json([]);
   }
 
-  // Forgot password - send reset code
-  if (path === '/api/forgot-password' && method === 'POST') {
-    const { email } = req.body || {};
-    if (!email) return res.status(400).json({ error: '请输入邮箱' });
+  // Reset password (no verification code needed)
+  if (path === '/api/reset-password' && method === 'POST') {
+    const { email, newPassword } = req.body || {};
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: '请输入邮箱和新密码' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: '密码至少6位' });
+    }
     
     if (supabase) {
       const { data: user } = await supabase
@@ -356,91 +362,14 @@ module.exports = async (req, res) => {
         .eq('email', email)
         .single();
       
-      if (!user) return res.status(400).json({ error: '该邮箱未注册' });
-      
-      // Generate 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Store code in memory with expiration (5 minutes)
-      resetCodes.set(email, {
-        code,
-        expiresAt: Date.now() + 5 * 60 * 1000
-      });
-      
-      // Clean up expired codes
-      for (const [key, value] of resetCodes) {
-        if (value.expiresAt < Date.now()) {
-          resetCodes.delete(key);
-        }
+      if (!user) {
+        return res.status(400).json({ error: '该邮箱未注册' });
       }
       
-      // Send email
-      if (transporter) {
-        try {
-          await transporter.sendMail({
-            from: `"StorySpeak" <${EMAIL_USER}>`,
-            to: email,
-            subject: 'StorySpeak 密码重置验证码',
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #667eea;">StorySpeak 密码重置</h2>
-                <p>您好，</p>
-                <p>您申请了密码重置，请在 5 分钟内输入以下验证码：</p>
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 32px; font-weight: bold; padding: 20px 40px; text-align: center; border-radius: 10px; margin: 20px 0;">
-                  ${code}
-                </div>
-                <p>如果这不是您本人操作，请忽略此邮件。</p>
-                <p style="color: #888; font-size: 12px; margin-top: 30px;">
-                  此邮件由系统自动发送，请勿回复。
-                </p>
-              </div>
-            `
-          });
-          return res.json({ 
-            success: true, 
-            message: '验证码已发送到您的邮箱，请查收。'
-          });
-        } catch (emailError) {
-          console.error('Email send error:', emailError.message);
-          return res.status(500).json({ error: '邮件发送失败，请稍后重试。错误: ' + emailError.message });
-        }
-      } else {
-        return res.status(500).json({ error: '邮件服务未配置' });
-      }
-    }
-    return res.status(500).json({ error: '服务暂不可用' });
-  }
-
-  // Reset password
-  if (path === '/api/reset-password' && method === 'POST') {
-    const { email, code, newPassword } = req.body || {};
-    if (!email || !code || !newPassword) {
-      return res.status(400).json({ error: '请填写完整信息' });
-    }
-    
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: '密码至少6位' });
-    }
-    
-    // Verify code from memory
-    const stored = resetCodes.get(email);
-    if (!stored || stored.code !== code) {
-      return res.status(400).json({ error: '验证码错误' });
-    }
-    if (stored.expiresAt < Date.now()) {
-      resetCodes.delete(email);
-      return res.status(400).json({ error: '验证码已过期，请重新获取' });
-    }
-    
-    if (supabase) {
-      // Update password
       await supabase
         .from('users')
         .update({ password: newPassword })
         .eq('email', email);
-      
-      // Delete used code
-      resetCodes.delete(email);
       
       return res.json({ success: true, message: '密码重置成功，请使用新密码登录' });
     }
