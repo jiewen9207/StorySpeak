@@ -314,11 +314,12 @@ module.exports = async (req, res) => {
     let userData = { ...authUser };
     let totalStories = 0;
     if (supabase) {
-      const { data: user } = await supabase
+      const { data: user, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
+      console.log('Profile - authUser.id:', authUser.id, 'Query result:', user, 'Error:', error);
       if (user) {
         userData = { ...user };
         const { count } = await supabase
