@@ -193,12 +193,21 @@
       const text = sentence.english;
       
       if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
         utterance.rate = 0.9;
         utterance.pitch = 1;
         
-        window.speechSynthesis.cancel();
+        utterance.onstart = () => {
+          showMessage('正在播放: ' + text.substring(0, 30) + '...', 'success');
+        };
+        
+        utterance.onerror = (e) => {
+          console.error('Speech error:', e);
+          showMessage('播放失败，请检查浏览器语音设置', 'error');
+        };
+        
         window.speechSynthesis.speak(utterance);
       } else {
         showMessage('您的浏览器不支持语音播放', 'error');
