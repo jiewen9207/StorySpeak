@@ -5,10 +5,18 @@ try { bcrypt = require('bcryptjs'); } catch(e) { bcrypt = null; console.log('bcr
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+console.log('=== DEBUG ENV ===');
+console.log('SUPABASE_URL:', supabaseUrl ? 'SET (' + supabaseUrl.substring(0, 20) + '...)' : 'MISSING');
+console.log('SUPABASE_KEY:', supabaseKey ? 'SET (' + supabaseKey.substring(0, 10) + '...)' : 'MISSING');
+console.log('=================');
+
 let supabase = null;
 
 if (supabaseUrl && supabaseKey) {
   supabase = createClient(supabaseUrl, supabaseKey);
+  console.log('Supabase client created');
+} else {
+  console.log('Supabase NOT initialized - missing env vars');
 }
 
 // Demo data for fallback
