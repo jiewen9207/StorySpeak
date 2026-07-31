@@ -90,6 +90,24 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+// Reset password (no verification code)
+app.post('/api/reset-password', (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: '请输入邮箱和新密码' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: '密码至少6位' });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  if (!user) {
+    return res.status(400).json({ error: '该邮箱未注册' });
+  }
+  const hashedPassword = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password = ? WHERE email = ?').run(hashedPassword, email);
+  res.json({ success: true, message: '密码重置成功，请使用新密码登录' });
+});
+
 app.post('/api/redeem', authMiddleware, (req, res) => {
   const { code } = req.body;
   if (!code) {
