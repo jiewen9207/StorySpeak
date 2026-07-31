@@ -139,7 +139,7 @@
         </div>
       `).join('');
       
-      currentSentenceIndex = storyData.progress.last_sentence_index || 0;
+      currentSentenceIndex = storyData.progress?.last_sentence_index || 0;
       scrollToSentence(currentSentenceIndex);
     }
 
