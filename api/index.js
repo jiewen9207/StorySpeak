@@ -308,6 +308,13 @@ module.exports = async (req, res) => {
     return res.json(authUser);
   }
 
+  // Get favorites
+  if (path === '/api/favorites' && method === 'GET' && authUser) {
+    if (!supabase) return res.json([]);
+    // For now return empty array - favorites feature not fully implemented
+    return res.json([]);
+  }
+
   // Admin: Generate codes
   if (path === '/api/admin/generate-codes' && method === 'POST' && authUser?.is_admin) {
     const { count = 10 } = req.body || {};
@@ -397,7 +404,7 @@ module.exports = async (req, res) => {
       const { data: user } = await supabase.from('users').select('is_active').eq('id', userId).single();
       if (!user) return res.status(404).json({ error: '用户不存在' });
       
-      const newStatus = !user.is_active;
+      const newStatus = user.is_active ? 0 : 1;
       await supabase.from('users').update({ is_active: newStatus }).eq('id', userId);
       
       return res.json({ success: true, is_active: newStatus });
