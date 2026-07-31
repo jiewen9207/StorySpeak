@@ -199,10 +199,9 @@
         });
         showMessage('兑换码激活成功！', 'success');
         
-        // Update localStorage user data
-        const userData = JSON.parse(localStorage.getItem('storyspeak_user') || '{}');
-        userData.is_active = true;
-        localStorage.setItem('storyspeak_user', JSON.stringify(userData));
+        // Fetch fresh user data from server
+        const freshUser = await api('/api/user/profile');
+        localStorage.setItem('storyspeak_user', JSON.stringify(freshUser));
         
         // Refresh the page after a short delay
         setTimeout(() => {
