@@ -215,18 +215,30 @@ module.exports = async (req, res) => {
     if (foundCode.status === 'used') return res.status(400).json({ error: '兑换码已被使用' });
     
     // Update redemption code
-    await supabase
+    const updateCodeResult = await supabase
       .from('redemption_codes')
       .update({ status: 'used', used_by: authUser.id })
       .eq('code', normalizedCode);
     
-    // Update user
-    await supabase
+    // Update user - ensure id is number
+    const userId = typeof authUser.id === 'string' ? parseInt(authUser.id) : authUser.id;
+    const updateUserResult = await supabase
       .from('users')
       .update({ is_active: true })
-      .eq('id', authUser.id);
+      .eq('id', userId);
     
-    return res.json({ success: true, message: '兑换码激活成功！' });
+    // Verify the update
+    const { data: updatedUser } = await supabase
+      .from('users')
+      .select('id, is_active')
+      .eq('id', userId)
+      .single();
+    
+    return res.json({ 
+      success: true, 
+      message: '兑换码激活成功！',
+      userUpdated: updatedUser
+    });
   }
 
   // Get stories
