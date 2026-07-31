@@ -1,22 +1,13 @@
 const { createClient } = require('@supabase/supabase-js');
 let bcrypt;
-try { bcrypt = require('bcryptjs'); } catch(e) { bcrypt = null; console.log('bcrypt not available'); }
+try { bcrypt = require('bcryptjs'); } catch(e) { bcrypt = null; }
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-console.log('=== DEBUG ENV ===');
-console.log('SUPABASE_URL:', supabaseUrl ? 'SET (' + supabaseUrl.substring(0, 20) + '...)' : 'MISSING');
-console.log('SUPABASE_KEY:', supabaseKey ? 'SET (' + supabaseKey.substring(0, 10) + '...)' : 'MISSING');
-console.log('=================');
-
 let supabase = null;
-
 if (supabaseUrl && supabaseKey) {
   supabase = createClient(supabaseUrl, supabaseKey);
-  console.log('Supabase client created');
-} else {
-  console.log('Supabase NOT initialized - missing env vars');
 }
 
 // Demo data for fallback
@@ -77,17 +68,22 @@ module.exports = async (req, res) => {
     return res.json({ error: 'no supabase' });
   }
 
-  // Debug endpoint
+  // Debug endpoint - returns env status
   if (path === '/api/debug' && method === 'GET') {
     let testResult = 'not tested';
     if (supabase) {
-      const { data, error } = await supabase.from('users').select('id,username').limit(1);
-      testResult = error ? error.message : `found ${data?.length || 0} users`;
+      try {
+        const { data, error } = await supabase.from('users').select('id,username').limit(1);
+        testResult = error ? error.message : `found ${data?.length || 0} users`;
+      } catch(e) {
+        testResult = 'Error: ' + e.message;
+      }
     }
     return res.json({
       supabaseConnected: !!supabase,
       supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
       supabaseKey: supabaseKey ? 'SET' : 'MISSING',
+      supabaseUrlValue: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : null,
       testQuery: testResult
     });
   }
