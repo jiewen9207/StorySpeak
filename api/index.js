@@ -71,10 +71,12 @@ module.exports = async (req, res) => {
   // Debug endpoint - returns env status
   if (path === '/api/debug' && method === 'GET') {
     let testResult = 'not tested';
+    let users = [];
     if (supabase) {
       try {
-        const { data, error } = await supabase.from('users').select('id,username').limit(1);
+        const { data, error } = await supabase.from('users').select('id,username,email,is_active');
         testResult = error ? error.message : `found ${data?.length || 0} users`;
+        users = data || [];
       } catch(e) {
         testResult = 'Error: ' + e.message;
       }
@@ -83,8 +85,21 @@ module.exports = async (req, res) => {
       supabaseConnected: !!supabase,
       supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
       supabaseKey: supabaseKey ? 'SET' : 'MISSING',
-      supabaseUrlValue: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : null,
-      testQuery: testResult
+      testQuery: testResult,
+      users: users
+    });
+  }
+  
+  // Debug: check specific user
+  if (path === '/api/debug-user' && method === 'GET') {
+    if (!authUser) return res.json({ error: 'no auth' });
+    return res.json({
+      authUser: authUser,
+      idType: typeof authUser.id,
+      isActiveType: typeof authUser.is_active,
+      isActiveValue: authUser.is_active,
+      isActiveEquals1: authUser.is_active === 1,
+      isActiveEqualsTrue: authUser.is_active === true
     });
   }
 
