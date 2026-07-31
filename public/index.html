@@ -79,6 +79,9 @@
           body: { login, password }
         });
         setToken(data.token);
+        if (data.user) {
+          localStorage.setItem('storyspeak_user', JSON.stringify(data.user));
+        }
         showMessage('登录成功！正在跳转...', 'success');
         setTimeout(() => {
           window.location.href = '/stories.html';
