@@ -226,14 +226,12 @@ module.exports = async (req, res) => {
     
     // Update user - try with the exact id from authUser
     const userIdNum = Number(authUser.id);
-    console.log('Updating user with id:', userIdNum);
     
+    // Update user - use 1 instead of true because database field is integer
     const updateUserResult = await supabase
       .from('users')
-      .update({ is_active: true })
+      .update({ is_active: 1 })
       .eq('id', userIdNum);
-    
-    console.log('Update user result:', JSON.stringify(updateUserResult));
     
     // Verify the update
     const { data: updatedUser } = await supabase
@@ -244,9 +242,7 @@ module.exports = async (req, res) => {
     
     return res.json({ 
       success: true, 
-      message: '兑换码激活成功！',
-      userId: userIdNum,
-      userUpdated: updatedUser
+      message: '兑换码激活成功！'
     });
   }
 
