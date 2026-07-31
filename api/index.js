@@ -1,9 +1,30 @@
 const { createClient } = require('@supabase/supabase-js');
+const nodemailer = require('nodemailer');
 let bcrypt;
 try { bcrypt = require('bcryptjs'); } catch(e) { bcrypt = null; console.log('bcrypt not available'); }
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Email settings
+const EMAIL_HOST = 'smtp.163.com';
+const EMAIL_PORT = 465;
+const EMAIL_USER = process.env.EMAIL_USER || 'm13267093422_1@163.com';
+const EMAIL_PASS = process.env.EMAIL_PASS || 'SWR35qvxpnqnZdJJ';
+
+// Create email transporter
+let transporter = null;
+if (EMAIL_USER && EMAIL_PASS) {
+  transporter = nodemailer.createTransport({
+    host: EMAIL_HOST,
+    port: EMAIL_PORT,
+    secure: true,
+    auth: {
+      user: EMAIL_USER,
+      pass: EMAIL_PASS
+    }
+  });
+}
 
 let supabase = null;
 
@@ -343,13 +364,37 @@ module.exports = async (req, res) => {
         .from('password_reset_codes')
         .insert({ email, code, expires_at: expiresAt });
       
-      // NOTE: In production, integrate with email service like SendGrid/Mailgun
-      // For now, log to console - admin can check Vercel logs for the code
-      console.log(`Password reset code for ${email}: ${code}`);
+      // Send email
+      if (transporter) {
+        try {
+          await transporter.sendMail({
+            from: `"StorySpeak" <${EMAIL_USER}>`,
+            to: email,
+            subject: 'StorySpeak 密码重置验证码',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #667eea;">StorySpeak 密码重置</h2>
+                <p>您好，</p>
+                <p>您申请了密码重置，请在 5 分钟内输入以下验证码：</p>
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 32px; font-weight: bold; padding: 20px 40px; text-align: center; border-radius: 10px; margin: 20px 0;">
+                  ${code}
+                </div>
+                <p>如果这不是您本人操作，请忽略此邮件。</p>
+                <p style="color: #888; font-size: 12px; margin-top: 30px;">
+                  此邮件由系统自动发送，请勿回复。
+                </p>
+              </div>
+            `
+          });
+        } catch (emailError) {
+          console.error('Email send error:', emailError.message);
+          // Still return success to prevent email enumeration
+        }
+      }
       
       return res.json({ 
         success: true, 
-        message: '验证码已发送到您的邮箱，请查收。如果没有收到，请联系客服。'
+        message: '验证码已发送到您的邮箱，请查收。'
       });
     }
     return res.status(500).json({ error: '服务暂不可用' });
