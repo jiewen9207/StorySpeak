@@ -52,6 +52,10 @@
     let startTime = Date.now();
 
     async function init() {
+      // Activate speech synthesis on page load
+      if (window.speechSynthesis) {
+        window.speechSynthesis.getVoices();
+      }
       if (!checkAuth()) return;
       if (!storyId) {
         window.location.href = '/stories.html';
