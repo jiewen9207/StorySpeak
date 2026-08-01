@@ -400,6 +400,31 @@ async function api(endpoint, options = {}) {
     return codes.slice(-100).reverse();
   }
   
+  // Change password
+  if (endpoint === '/api/change-password') {
+    if (!email) throw new Error('请先登录');
+    
+    const user = getUserByEmail(email);
+    if (!user) throw new Error('用户不存在');
+    
+    if (body.old_password !== user.password) {
+      throw new Error('原密码错误');
+    }
+    
+    if (body.new_password.length < 6) {
+      throw new Error('新密码至少6位');
+    }
+    
+    const users = getUsers();
+    const userIndex = users.findIndex(u => u.id === user.id);
+    if (userIndex >= 0) {
+      users[userIndex].password = body.new_password;
+      saveUsers(users);
+    }
+    
+    return { success: true };
+  }
+  
   // Admin: users
   if (endpoint === '/api/admin/users') {
     if (!email) throw new Error('请先登录');

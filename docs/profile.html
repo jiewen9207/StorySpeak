@@ -72,6 +72,25 @@
       <h2 style="margin-bottom: 16px;">📊 学习统计</h2>
       <div id="statsDisplay"></div>
     </div>
+
+    <div class="profile-section">
+      <h2 style="margin-bottom: 16px;">🔐 修改密码</h2>
+      <form id="changePasswordForm" style="max-width: 400px;">
+        <div class="form-group">
+          <label>原密码</label>
+          <input type="password" id="oldPassword" placeholder="请输入原密码" required>
+        </div>
+        <div class="form-group">
+          <label>新密码 (至少6位)</label>
+          <input type="password" id="newPassword" placeholder="请输入新密码" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label>确认新密码</label>
+          <input type="password" id="confirmPassword" placeholder="请再次输入新密码" required>
+        </div>
+        <button type="submit" class="btn btn-primary">修改密码</button>
+      </form>
+    </div>
   </div>
 
   <script type="module" src="./js/supabase.js"></script>
@@ -167,6 +186,30 @@
         window.showMessage(err.message, 'error');
       }
     };
+
+    // Change password
+    document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const oldPassword = document.getElementById('oldPassword').value;
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      
+      if (newPassword !== confirmPassword) {
+        window.showMessage('两次输入的密码不一致', 'error');
+        return;
+      }
+      
+      try {
+        await window.api('/api/change-password', {
+          method: 'POST',
+          body: { old_password: oldPassword, new_password: newPassword }
+        });
+        window.showMessage('密码修改成功！', 'success');
+        document.getElementById('changePasswordForm').reset();
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    });
 
     init();
   </script>
