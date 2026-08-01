@@ -245,6 +245,7 @@
                 <th>用户名</th>
                 <th>邮箱</th>
                 <th>状态</th>
+                <th>管理员</th>
                 <th>注册时间</th>
                 <th>操作</th>
               </tr>
@@ -254,11 +255,15 @@
                 <tr>
                   <td>${u.username || '-'}</td>
                   <td>${u.email}</td>
-                  <td>${u.is_active ? '<span class="badge badge-easy">已激活</span>' : '<span class="badge badge-hard">未激活</span>'}</td>
+                  <td>${u.is_active ? '<span class="badge badge-easy">正常</span>' : '<span class="badge badge-hard">禁用</span>'}</td>
+                  <td>${u.is_admin ? '<span class="badge badge-hard">是</span>' : '<span class="badge badge-easy">否</span>'}</td>
                   <td>${u.created_at?.split('T')[0] || '-'}</td>
                   <td>
-                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="toggleUserActive(${u.id})">
+                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="toggleUserActive('${u.id}')">
                       ${u.is_active ? '禁用' : '启用'}
+                    </button>
+                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="toggleUserAdmin('${u.id}')">
+                      ${u.is_admin ? '撤销管理员' : '设为管理员'}
                     </button>
                   </td>
                 </tr>
@@ -275,6 +280,20 @@
       if (!confirm('确定要启用/禁用此用户吗？')) return;
       try {
         await window.api(`/api/admin/users/${id}/toggle-active`, { 
+          method: 'POST',
+          body: { admin_password: ADMIN_PASSWORD }
+        });
+        window.showMessage('操作成功', 'success');
+        loadUsers();
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    };
+    
+    window.toggleUserAdmin = async function(id) {
+      if (!confirm('确定要设置此用户为管理员吗？')) return;
+      try {
+        await window.api(`/api/admin/users/${id}/toggle-admin`, { 
           method: 'POST',
           body: { admin_password: ADMIN_PASSWORD }
         });
