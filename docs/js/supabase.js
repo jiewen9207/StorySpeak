@@ -4,7 +4,8 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://ylpeaimlmlruwookbcxk.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlscGVhaW1sbWxydXdvb2tiY3hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3ODU4MjYsImV4cCI6MjA2NTM2MTgyNn0.W7Xq9Vq3T_qFv5zGZi6JqV8aZzYdJQvJc-0m9R2qPjI';
+// Anon key - 从 Supabase Project Settings → API 获取
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlscGVhaW1sbWxydXdvb2tiY3hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzODEyMzEsImV4cCI6MjEwMDk1NzIzMX0.S1LkdkgFuhLaFJSNkurSRO-LP9EvNonXUbh8gqDooLk';
 
 // Create Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
