@@ -1,18 +1,12 @@
-// Simple Supabase client for GitHub Pages - no Auth dependency
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Fully local auth - no server needed!
+const API_BASE = '';
 
-const SUPABASE_URL = 'https://ylpeaimlmlruwookbcxk.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlscGVhaW1sbWxydXdvb2tiY3hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3ODU4MjYsImV4cCI6MjA2NTM2MTgyNn0.W7Xq9Vq3T_qFv5zGZi6JqV8aZzYdJQvJc-0m9R2qPjI';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Simple token management - just store in localStorage
+// Token management
 function getToken() {
   return localStorage.getItem('ss_token');
 }
 
 function setToken(email) {
-  // Create a simple token from email + timestamp
   const token = btoa(email + ':' + Date.now());
   localStorage.setItem('ss_token', token);
   localStorage.setItem('ss_email', email);
@@ -23,6 +17,11 @@ function clearToken() {
   localStorage.removeItem('ss_token');
   localStorage.removeItem('ss_email');
   localStorage.removeItem('ss_user');
+  localStorage.removeItem('ss_users');
+  localStorage.removeItem('ss_codes');
+  localStorage.removeItem('ss_progress');
+  localStorage.removeItem('ss_favorites');
+  localStorage.removeItem('ss_words');
 }
 
 function setUser(user) {
@@ -37,6 +36,115 @@ function getUser() {
 function getCurrentEmail() {
   return localStorage.getItem('ss_email');
 }
+
+// User management - all in localStorage
+function getUsers() {
+  const data = localStorage.getItem('ss_users');
+  return data ? JSON.parse(data) : [];
+}
+
+function saveUsers(users) {
+  localStorage.setItem('ss_users', JSON.stringify(users));
+}
+
+function getUserByEmail(email) {
+  const users = getUsers();
+  return users.find(u => u.email.toLowerCase() === email.toLowerCase());
+}
+
+function createUser(userData) {
+  const users = getUsers();
+  if (users.find(u => u.email.toLowerCase() === userData.email.toLowerCase())) {
+    throw new Error('该邮箱已注册');
+  }
+  const user = {
+    id: Date.now(),
+    username: userData.username,
+    email: userData.email.toLowerCase(),
+    password: userData.password,
+    is_active: false,
+    is_admin: userData.email.toLowerCase() === 'admin@storyspeak.com',
+    created_at: new Date().toISOString()
+  };
+  users.push(user);
+  saveUsers(users);
+  return user;
+}
+
+// Redemption codes
+function getCodes() {
+  const data = localStorage.getItem('ss_codes');
+  return data ? JSON.parse(data) : [];
+}
+
+function saveCodes(codes) {
+  localStorage.setItem('ss_codes', JSON.stringify(codes));
+}
+
+// Progress
+function getProgress(userId) {
+  const data = localStorage.getItem('ss_progress');
+  return data ? JSON.parse(data) : [];
+}
+
+function saveProgress(progress) {
+  localStorage.setItem('ss_progress', JSON.stringify(progress));
+}
+
+// Favorites
+function getFavorites(userId) {
+  const data = localStorage.getItem('ss_favorites');
+  return data ? JSON.parse(data) : [];
+}
+
+function saveFavorites(favorites) {
+  localStorage.setItem('ss_favorites', JSON.stringify(favorites));
+}
+
+// Words
+function getWords(userId) {
+  const data = localStorage.getItem('ss_words');
+  return data ? JSON.parse(data) : [];
+}
+
+function saveWords(words) {
+  localStorage.setItem('ss_words', JSON.stringify(words));
+}
+
+// Initialize with default admin and some codes
+function initDefaults() {
+  // Add admin if not exists
+  if (!getUserByEmail('admin@storyspeak.com')) {
+    const users = getUsers();
+    users.push({
+      id: 1,
+      username: 'admin',
+      email: 'admin@storyspeak.com',
+      password: 'admin123',
+      is_active: true,
+      is_admin: true,
+      created_at: '2024-01-01T00:00:00Z'
+    });
+    saveUsers(users);
+  }
+  
+  // Add some codes if none exist
+  if (getCodes().length === 0) {
+    const codes = [];
+    for (let i = 0; i < 100; i++) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let code = '';
+      for (let j = 0; j < 12; j++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      codes.push({ code, status: 'unused', created_at: new Date().toISOString() });
+    }
+    saveCodes(codes);
+  }
+}
+
+// Initialize on load
+initDefaults();
 
 // Show message
 function showMessage(message, type = 'success') {
@@ -69,29 +177,20 @@ async function logout() {
   window.location.href = './';
 }
 
-// API wrapper - all operations go through Supabase directly
+// API wrapper
 async function api(endpoint, options = {}) {
   const method = options.method || 'GET';
   const body = options.body;
   const email = getCurrentEmail();
   
-  // Login - find or check user in database
+  // Login
   if (endpoint === '/api/login') {
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', body.login.toLowerCase())
-      .limit(1);
-    
-    if (error) throw new Error('数据库错误');
-    
-    const user = users && users.length > 0 ? users[0] : null;
+    const user = getUserByEmail(body.login);
     
     if (!user) {
       throw new Error('用户不存在，请先注册');
     }
     
-    // Simple password check (in production, use proper hashing)
     if (user.password !== body.password) {
       throw new Error('密码错误');
     }
@@ -99,40 +198,16 @@ async function api(endpoint, options = {}) {
     const token = setToken(user.email);
     setUser(user);
     
-    return {
-      token,
-      user
-    };
+    return { token, user };
   }
   
-  // Register - create new user
+  // Register
   if (endpoint === '/api/register') {
-    // Check if email exists
-    const { data: existing } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', body.email.toLowerCase())
-      .single();
-    
-    if (existing) {
-      throw new Error('该邮箱已注册，请直接登录');
-    }
-    
-    // Create new user
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        username: body.username,
-        email: body.email.toLowerCase(),
-        password: body.password,
-        is_active: false,
-        is_admin: false,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-    
-    if (error) throw new Error('注册失败');
+    const user = createUser({
+      username: body.username,
+      email: body.email,
+      password: body.password
+    });
     
     return { success: true };
   }
@@ -141,36 +216,18 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/user/profile') {
     if (!email) throw new Error('请先登录');
     
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-    
-    if (error) throw new Error('获取用户信息失败');
+    const user = getUserByEmail(email);
+    if (!user) throw new Error('用户不存在');
     
     // Get stats
-    const { count: totalStories } = await supabase
-      .from('user_progress')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id);
-    
-    const { count: completed } = await supabase
-      .from('user_progress')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('is_completed', true);
-    
-    const { count: favorites } = await supabase
-      .from('favorites')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id);
+    const progress = getProgress(user.id);
+    const favorites = getFavorites(user.id);
     
     user.stats = {
-      totalStories: totalStories || 0,
-      completedStories: completed || 0,
-      totalTime: 0,
-      favorites: favorites || 0
+      totalStories: progress.length,
+      completedStories: progress.filter(p => p.is_completed).length,
+      totalTime: progress.reduce((sum, p) => sum + (p.total_time || 0), 0),
+      favorites: favorites.length
     };
     
     setUser(user);
@@ -181,36 +238,31 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/redeem') {
     if (!email) throw new Error('请先登录');
     
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
-    
+    const user = getUserByEmail(email);
     if (!user) throw new Error('用户不存在');
     
-    const { data: code } = await supabase
-      .from('redemption_codes')
-      .select('*')
-      .eq('code', body.code.trim().toUpperCase())
-      .single();
+    const codes = getCodes();
+    const code = codes.find(c => c.code === body.code.trim().toUpperCase());
     
     if (!code) throw new Error('兑换码无效');
     if (code.status === 'used') throw new Error('兑换码已被使用');
     
-    await supabase
-      .from('users')
-      .update({ is_active: true })
-      .eq('id', user.id);
+    // Activate user
+    const users = getUsers();
+    const userIndex = users.findIndex(u => u.id === user.id);
+    if (userIndex >= 0) {
+      users[userIndex].is_active = true;
+      saveUsers(users);
+    }
     
-    await supabase
-      .from('redemption_codes')
-      .update({
-        status: 'used',
-        used_by: user.id,
-        used_at: new Date().toISOString()
-      })
-      .eq('id', code.id);
+    // Mark code as used
+    const codeIndex = codes.findIndex(c => c.code === code.code);
+    if (codeIndex >= 0) {
+      codes[codeIndex].status = 'used';
+      codes[codeIndex].used_by = user.id;
+      codes[codeIndex].used_at = new Date().toISOString();
+      saveCodes(codes);
+    }
     
     return { success: true };
   }
@@ -218,97 +270,55 @@ async function api(endpoint, options = {}) {
   // Words
   if (endpoint === '/api/words') {
     if (!email) return [];
-    
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
-    
+    const user = getUserByEmail(email);
     if (!user) return [];
-    
-    const { data: words } = await supabase
-      .from('saved_words')
-      .select('id, word')
-      .eq('user_id', user.id);
-    
-    return words || [];
+    return getWords(user.id);
   }
   
   if (endpoint.match(/^\/api\/words\/.+/) && method === 'DELETE') {
     if (!email) throw new Error('请先登录');
-    
     const word = decodeURIComponent(endpoint.split('/').pop());
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
+    const user = getUserByEmail(email);
+    if (!user) throw new Error('用户不存在');
     
-    await supabase
-      .from('saved_words')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('word', word);
+    const words = getWords(user.id);
+    const filtered = words.filter(w => w.word !== word);
+    saveWords(filtered);
     
     return { success: true };
   }
   
-  // Favorites - get IDs
+  // Favorites
   if (endpoint === '/api/favorites') {
     if (!email) return [];
-    
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
-    
+    const user = getUserByEmail(email);
     if (!user) return [];
-    
-    const { data: favs } = await supabase
-      .from('favorites')
-      .select('story_id')
-      .eq('user_id', user.id);
-    
-    return favs?.map(f => f.story_id) || [];
+    return getFavorites(user.id).map(f => f.story_id);
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'POST') {
     if (!email) throw new Error('请先登录');
-    
     const storyId = parseInt(endpoint.split('/').pop());
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
+    const user = getUserByEmail(email);
+    if (!user) throw new Error('用户不存在');
     
-    await supabase
-      .from('favorites')
-      .upsert({
-        user_id: user.id,
-        story_id: storyId
-      }, { onConflict: 'user_id,story_id' });
+    const favorites = getFavorites(user.id);
+    if (!favorites.find(f => f.story_id === storyId)) {
+      favorites.push({ story_id: storyId });
+      saveFavorites(favorites);
+    }
     
     return { success: true };
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'DELETE') {
     if (!email) throw new Error('请先登录');
-    
     const storyId = parseInt(endpoint.split('/').pop());
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
+    const user = getUserByEmail(email);
+    if (!user) throw new Error('用户不存在');
     
-    await supabase
-      .from('favorites')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('story_id', storyId);
+    const favorites = getFavorites(user.id).filter(f => f.story_id !== storyId);
+    saveFavorites(favorites);
     
     return { success: true };
   }
@@ -316,40 +326,20 @@ async function api(endpoint, options = {}) {
   // Progress
   if (endpoint.match(/^\/api\/progress\/\d+$/) && method === 'POST') {
     if (!email) throw new Error('请先登录');
-    
     const storyId = parseInt(endpoint.split('/').pop());
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
+    const user = getUserByEmail(email);
+    if (!user) throw new Error('用户不存在');
     
-    const { data: existing } = await supabase
-      .from('user_progress')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('story_id', storyId)
-      .single();
+    const progress = getProgress(user.id);
+    const existing = progress.findIndex(p => p.story_id === storyId);
     
-    if (existing) {
-      await supabase
-        .from('user_progress')
-        .update({
-          ...body,
-          last_study_at: new Date().toISOString()
-        })
-        .eq('id', existing.id);
+    if (existing >= 0) {
+      progress[existing] = { ...progress[existing], ...body, last_study_at: new Date().toISOString() };
     } else {
-      await supabase
-        .from('user_progress')
-        .insert({
-          user_id: user.id,
-          story_id: storyId,
-          ...body,
-          last_study_at: new Date().toISOString()
-        });
+      progress.push({ user_id: user.id, story_id: storyId, ...body, last_study_at: new Date().toISOString() });
     }
     
+    saveProgress(progress);
     return { success: true };
   }
   
@@ -357,33 +347,20 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/admin/stats') {
     if (!email) throw new Error('请先登录');
     
-    const { data: profile } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('email', email)
-      .single();
+    const user = getUserByEmail(email);
+    if (!user?.is_admin) throw new Error('需要管理员权限');
     
-    if (!profile?.is_admin) throw new Error('需要管理员权限');
-    
-    const { count: totalUsers } = await supabase.from('users').select('*', { count: 'exact', head: true });
-    const { count: activeUsers } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_active', true);
-    const { count: totalCodes } = await supabase.from('redemption_codes').select('*', { count: 'exact', head: true });
-    const { count: usedCodes } = await supabase.from('redemption_codes').select('*', { count: 'exact', head: true }).eq('status', 'used');
-    const { count: totalStories } = await supabase.from('stories').select('*', { count: 'exact', head: true });
-    
-    const today = new Date().toISOString().split('T')[0];
-    const { count: todayUsers } = await supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', today);
-    
-    const { data: popularStories } = await supabase.from('stories').select('id, title').limit(5);
+    const users = getUsers();
+    const codes = getCodes();
     
     return {
-      totalUsers: totalUsers || 0,
-      activeUsers: activeUsers || 0,
-      totalCodes: totalCodes || 0,
-      usedCodes: usedCodes || 0,
-      totalStories: totalStories || 0,
-      todayUsers: todayUsers || 0,
-      popularStories: popularStories || []
+      totalUsers: users.length,
+      activeUsers: users.filter(u => u.is_active).length,
+      totalCodes: codes.length,
+      usedCodes: codes.filter(c => c.status === 'used').length,
+      totalStories: 1005,
+      todayUsers: users.filter(u => new Date(u.created_at).toDateString() === new Date().toDateString()).length,
+      popularStories: []
     };
   }
   
@@ -391,80 +368,65 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/admin/generate-codes') {
     if (!email) throw new Error('请先登录');
     
-    const { data: profile } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('email', email)
-      .single();
-    
-    if (!profile?.is_admin) throw new Error('需要管理员权限');
+    const user = getUserByEmail(email);
+    if (!user?.is_admin) throw new Error('需要管理员权限');
     
     const count = body.count || 10;
-    const codes = [];
+    const codes = getCodes();
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const newCodes = [];
     
     for (let i = 0; i < count; i++) {
       let code = '';
       for (let j = 0; j < 12; j++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      codes.push(code);
+      newCodes.push({ code, status: 'unused', created_at: new Date().toISOString() });
     }
     
-    const inserts = codes.map(code => ({ code, status: 'unused' }));
-    await supabase.from('redemption_codes').insert(inserts);
+    codes.push(...newCodes);
+    saveCodes(codes);
     
-    return { codes };
+    return { codes: newCodes.map(c => c.code) };
   }
   
   if (endpoint.match(/^\/api\/admin\/codes/)) {
     if (!email) throw new Error('请先登录');
     
-    let query = supabase.from('redemption_codes').select('*').order('created_at', { ascending: false }).limit(100);
-    if (endpoint.includes('status=used')) query = query.eq('status', 'used');
-    if (endpoint.includes('status=unused')) query = query.eq('status', 'unused');
+    const user = getUserByEmail(email);
+    if (!user?.is_admin) throw new Error('需要管理员权限');
     
-    const { data: codes } = await query;
-    return codes || [];
+    const codes = getCodes();
+    return codes.slice(-100).reverse();
   }
   
   // Admin: users
   if (endpoint === '/api/admin/users') {
     if (!email) throw new Error('请先登录');
     
-    const { data: profile } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('email', email)
-      .single();
+    const user = getUserByEmail(email);
+    if (!user?.is_admin) throw new Error('需要管理员权限');
     
-    if (!profile?.is_admin) throw new Error('需要管理员权限');
-    
-    const { data: users } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-    
-    return users || [];
+    return getUsers();
   }
   
   if (endpoint.match(/^\/api\/admin\/users\/\d+\/toggle-active$/) && method === 'POST') {
     const userId = parseInt(endpoint.split('/')[3]);
+    const users = getUsers();
+    const targetUser = users.find(u => u.id === userId);
     
-    const { data: user } = await supabase.from('users').select('is_active').eq('id', userId).single();
-    if (!user) throw new Error('用户不存在');
+    if (!targetUser) throw new Error('用户不存在');
     
-    await supabase.from('users').update({ is_active: !user.is_active }).eq('id', userId);
+    targetUser.is_active = !targetUser.is_active;
+    saveUsers(users);
     
-    return { is_active: !user.is_active };
+    return { is_active: targetUser.is_active };
   }
   
   throw new Error('Unknown endpoint');
 }
 
 // Export
-window.supabase = supabase;
 window.api = api;
 window.showMessage = showMessage;
 window.checkAuth = checkAuth;
