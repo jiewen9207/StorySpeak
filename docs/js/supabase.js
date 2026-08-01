@@ -1,4 +1,4 @@
-// Supabase client for browser - GitHub Pages deployment
+// Simple Supabase client for GitHub Pages - no Auth dependency
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://ylpeaimlmlruwookbcxk.supabase.co';
@@ -6,28 +6,36 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Token management
+// Simple token management - just store in localStorage
 function getToken() {
-  return localStorage.getItem('sb_token');
+  return localStorage.getItem('ss_token');
 }
 
-function setToken(token) {
-  localStorage.setItem('sb_token', token);
+function setToken(email) {
+  // Create a simple token from email + timestamp
+  const token = btoa(email + ':' + Date.now());
+  localStorage.setItem('ss_token', token);
+  localStorage.setItem('ss_email', email);
+  return token;
 }
 
 function clearToken() {
-  localStorage.removeItem('sb_token');
-  localStorage.removeItem('sb_refresh_token');
-  localStorage.removeItem('sb_user');
+  localStorage.removeItem('ss_token');
+  localStorage.removeItem('ss_email');
+  localStorage.removeItem('ss_user');
 }
 
 function setUser(user) {
-  localStorage.setItem('sb_user', JSON.stringify(user));
+  localStorage.setItem('ss_user', JSON.stringify(user));
 }
 
 function getUser() {
-  const data = localStorage.getItem('sb_user');
+  const data = localStorage.getItem('ss_user');
   return data ? JSON.parse(data) : null;
+}
+
+function getCurrentEmail() {
+  return localStorage.getItem('ss_email');
 }
 
 // Show message
@@ -52,148 +60,134 @@ async function checkAuth() {
     window.location.href = './';
     return false;
   }
-  
-  const { data: { user }, error } = await supabase.auth.setSession({
-    access_token: token,
-    refresh_token: localStorage.getItem('sb_refresh_token') || ''
-  });
-  
-  if (error || !user) {
-    clearToken();
-    window.location.href = './';
-    return false;
-  }
-  
   return true;
 }
 
 // Logout
 async function logout() {
-  await supabase.auth.signOut();
   clearToken();
   window.location.href = './';
 }
 
-// Get session
-async function getSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session;
-}
-
-// API wrapper
+// API wrapper - all operations go through Supabase directly
 async function api(endpoint, options = {}) {
   const method = options.method || 'GET';
   const body = options.body;
-  const session = await getSession();
+  const email = getCurrentEmail();
   
-  // Login
+  // Login - find or check user in database
   if (endpoint === '/api/login') {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: body.login,
-      password: body.password
-    });
-    
-    if (error) throw new Error(error.message);
-    
-    setToken(data.session.access_token);
-    localStorage.setItem('sb_refresh_token', data.session.refresh_token);
-    
-    // Get profile
-    const { data: profile } = await supabase
+    const { data: users, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', data.user.email)
-      .single();
+      .eq('email', body.login.toLowerCase())
+      .limit(1);
     
-    setUser(profile || { email: data.user.email });
+    if (error) throw new Error('数据库错误');
+    
+    const user = users && users.length > 0 ? users[0] : null;
+    
+    if (!user) {
+      throw new Error('用户不存在，请先注册');
+    }
+    
+    // Simple password check (in production, use proper hashing)
+    if (user.password !== body.password) {
+      throw new Error('密码错误');
+    }
+    
+    const token = setToken(user.email);
+    setUser(user);
     
     return {
-      token: data.session.access_token,
-      user: profile || { email: data.user.email }
+      token,
+      user
     };
   }
   
-  // Register
+  // Register - create new user
   if (endpoint === '/api/register') {
-    // Check existing
+    // Check if email exists
     const { data: existing } = await supabase
       .from('users')
       .select('id')
-      .eq('email', body.email)
+      .eq('email', body.email.toLowerCase())
       .single();
     
-    if (existing) throw new Error('该邮箱已注册');
+    if (existing) {
+      throw new Error('该邮箱已注册，请直接登录');
+    }
     
-    const { data, error } = await supabase.auth.signUp({
-      email: body.email,
-      password: body.password
-    });
-    
-    if (error) throw new Error(error.message);
-    
-    // Create profile
-    await supabase
+    // Create new user
+    const { data, error } = await supabase
       .from('users')
       .insert({
         username: body.username,
-        email: body.email,
+        email: body.email.toLowerCase(),
+        password: body.password,
         is_active: false,
-        is_admin: false
-      });
+        is_admin: false,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) throw new Error('注册失败');
     
     return { success: true };
   }
   
   // User profile
   if (endpoint === '/api/user/profile') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
-    const { data: profile, error } = await supabase
+    const { data: user, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
-    if (error) throw new Error(error.message);
+    if (error) throw new Error('获取用户信息失败');
     
     // Get stats
     const { count: totalStories } = await supabase
       .from('user_progress')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id);
+      .eq('user_id', user.id);
     
     const { count: completed } = await supabase
       .from('user_progress')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id)
+      .eq('user_id', user.id)
       .eq('is_completed', true);
     
     const { count: favorites } = await supabase
       .from('favorites')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id);
+      .eq('user_id', user.id);
     
-    profile.stats = {
+    user.stats = {
       totalStories: totalStories || 0,
       completedStories: completed || 0,
       totalTime: 0,
       favorites: favorites || 0
     };
     
-    return profile;
+    setUser(user);
+    return user;
   }
   
   // Redeem code
   if (endpoint === '/api/redeem') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
-    if (!profile) throw new Error('用户不存在');
+    if (!user) throw new Error('用户不存在');
     
     const { data: code } = await supabase
       .from('redemption_codes')
@@ -207,13 +201,13 @@ async function api(endpoint, options = {}) {
     await supabase
       .from('users')
       .update({ is_active: true })
-      .eq('id', profile.id);
+      .eq('id', user.id);
     
     await supabase
       .from('redemption_codes')
       .update({
         status: 'used',
-        used_by: profile.id,
+        used_by: user.id,
         used_at: new Date().toISOString()
       })
       .eq('id', code.id);
@@ -223,77 +217,77 @@ async function api(endpoint, options = {}) {
   
   // Words
   if (endpoint === '/api/words') {
-    if (!session) return [];
+    if (!email) return [];
     
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
-    if (!profile) return [];
+    if (!user) return [];
     
     const { data: words } = await supabase
       .from('saved_words')
       .select('id, word')
-      .eq('user_id', profile.id);
+      .eq('user_id', user.id);
     
     return words || [];
   }
   
   if (endpoint.match(/^\/api\/words\/.+/) && method === 'DELETE') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const word = decodeURIComponent(endpoint.split('/').pop());
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     await supabase
       .from('saved_words')
       .delete()
-      .eq('user_id', profile.id)
+      .eq('user_id', user.id)
       .eq('word', word);
     
     return { success: true };
   }
   
-  // Favorites
+  // Favorites - get IDs
   if (endpoint === '/api/favorites') {
-    if (!session) return [];
+    if (!email) return [];
     
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
-    if (!profile) return [];
+    if (!user) return [];
     
     const { data: favs } = await supabase
       .from('favorites')
       .select('story_id')
-      .eq('user_id', profile.id);
+      .eq('user_id', user.id);
     
     return favs?.map(f => f.story_id) || [];
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'POST') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const storyId = parseInt(endpoint.split('/').pop());
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     await supabase
       .from('favorites')
       .upsert({
-        user_id: profile.id,
+        user_id: user.id,
         story_id: storyId
       }, { onConflict: 'user_id,story_id' });
     
@@ -301,19 +295,19 @@ async function api(endpoint, options = {}) {
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'DELETE') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const storyId = parseInt(endpoint.split('/').pop());
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     await supabase
       .from('favorites')
       .delete()
-      .eq('user_id', profile.id)
+      .eq('user_id', user.id)
       .eq('story_id', storyId);
     
     return { success: true };
@@ -321,19 +315,19 @@ async function api(endpoint, options = {}) {
   
   // Progress
   if (endpoint.match(/^\/api\/progress\/\d+$/) && method === 'POST') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const storyId = parseInt(endpoint.split('/').pop());
-    const { data: profile } = await supabase
+    const { data: user } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     const { data: existing } = await supabase
       .from('user_progress')
       .select('id')
-      .eq('user_id', profile.id)
+      .eq('user_id', user.id)
       .eq('story_id', storyId)
       .single();
     
@@ -349,7 +343,7 @@ async function api(endpoint, options = {}) {
       await supabase
         .from('user_progress')
         .insert({
-          user_id: profile.id,
+          user_id: user.id,
           story_id: storyId,
           ...body,
           last_study_at: new Date().toISOString()
@@ -361,12 +355,12 @@ async function api(endpoint, options = {}) {
   
   // Admin: stats
   if (endpoint === '/api/admin/stats') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const { data: profile } = await supabase
       .from('users')
       .select('is_admin')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     if (!profile?.is_admin) throw new Error('需要管理员权限');
@@ -393,14 +387,14 @@ async function api(endpoint, options = {}) {
     };
   }
   
-  // Admin: codes
+  // Admin: generate codes
   if (endpoint === '/api/admin/generate-codes') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const { data: profile } = await supabase
       .from('users')
       .select('is_admin')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     if (!profile?.is_admin) throw new Error('需要管理员权限');
@@ -424,7 +418,7 @@ async function api(endpoint, options = {}) {
   }
   
   if (endpoint.match(/^\/api\/admin\/codes/)) {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     let query = supabase.from('redemption_codes').select('*').order('created_at', { ascending: false }).limit(100);
     if (endpoint.includes('status=used')) query = query.eq('status', 'used');
@@ -436,12 +430,12 @@ async function api(endpoint, options = {}) {
   
   // Admin: users
   if (endpoint === '/api/admin/users') {
-    if (!session) throw new Error('请先登录');
+    if (!email) throw new Error('请先登录');
     
     const { data: profile } = await supabase
       .from('users')
       .select('is_admin')
-      .eq('email', session.user.email)
+      .eq('email', email)
       .single();
     
     if (!profile?.is_admin) throw new Error('需要管理员权限');
@@ -464,43 +458,6 @@ async function api(endpoint, options = {}) {
     await supabase.from('users').update({ is_active: !user.is_active }).eq('id', userId);
     
     return { is_active: !user.is_active };
-  }
-  
-  // Admin: stories
-  if (endpoint === '/api/admin/stories') {
-    if (!session) throw new Error('请先登录');
-    
-    const { data: profile } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('email', session.user.email)
-      .single();
-    
-    if (!profile?.is_admin) throw new Error('需要管理员权限');
-    
-    if (method === 'POST') {
-      const { data, error } = await supabase
-        .from('stories')
-        .insert({
-          title: body.title,
-          title_cn: body.title_cn,
-          difficulty: body.difficulty,
-          category: body.category,
-          cover_image: body.cover_image
-        })
-        .select()
-        .single();
-      
-      if (error) throw new Error(error.message);
-      return { id: data.id };
-    }
-    
-    const { data: stories } = await supabase
-      .from('stories')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    return stories || [];
   }
   
   throw new Error('Unknown endpoint');
