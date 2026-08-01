@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>个人中心 - StorySpeak English</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
   <style>
     .profile-section {
       background: white;
@@ -42,12 +42,12 @@
 <body>
   <header class="header">
     <div class="header-content">
-      <a href="/stories.html" class="logo">StorySpeak</a>
+        <a href="./stories.html" class="logo">StorySpeak</a>
       <nav class="nav">
-        <a href="/stories.html">故事库</a>
-        <a href="/favorites.html">收藏夹</a>
-        <a href="/profile.html" class="active">个人中心</a>
-        <a href="/admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="./stories.html">故事库</a>
+        <a href="./favorites.html">收藏夹</a>
+        <a href="./profile.html" class="active">个人中心</a>
+        <a href="./admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
         <a href="#" id="logoutBtn">退出</a>
       </nav>
     </div>
@@ -74,7 +74,7 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
+  <script type="module" src="./js/supabase.js"></script>
   <script>
     async function init() {
       if (!checkAuth()) return;
