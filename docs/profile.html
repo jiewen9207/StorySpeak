@@ -74,8 +74,8 @@
     </div>
 
     <div class="profile-section">
-      <h2 style="margin-bottom: 16px;">🔐 修改密码</h2>
-      <form id="changePasswordForm" style="max-width: 400px;">
+      <button id="showPasswordBtn" class="btn btn-secondary" style="margin-bottom: 16px;">🔐 修改密码</button>
+      <form id="changePasswordForm" style="max-width: 400px; display: none;">
         <div class="form-group">
           <label>原密码</label>
           <input type="password" id="oldPassword" placeholder="请输入原密码" required>
@@ -88,7 +88,8 @@
           <label>确认新密码</label>
           <input type="password" id="confirmPassword" placeholder="请再次输入新密码" required>
         </div>
-        <button type="submit" class="btn btn-primary">修改密码</button>
+        <button type="submit" class="btn btn-primary">确认修改</button>
+        <button type="button" id="cancelPasswordBtn" class="btn btn-secondary" style="margin-left: 8px;">取消</button>
       </form>
     </div>
   </div>
@@ -186,6 +187,18 @@
         window.showMessage(err.message, 'error');
       }
     };
+
+    // Toggle password form
+    document.getElementById('showPasswordBtn').addEventListener('click', () => {
+      document.getElementById('showPasswordBtn').style.display = 'none';
+      document.getElementById('changePasswordForm').style.display = 'block';
+    });
+
+    document.getElementById('cancelPasswordBtn').addEventListener('click', () => {
+      document.getElementById('showPasswordBtn').style.display = 'inline-block';
+      document.getElementById('changePasswordForm').style.display = 'none';
+      document.getElementById('changePasswordForm').reset();
+    });
 
     // Change password
     document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
