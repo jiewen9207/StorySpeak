@@ -218,7 +218,11 @@
           body: { old_password: oldPassword, new_password: newPassword }
         });
         window.showMessage('密码修改成功！', 'success');
-        document.getElementById('changePasswordForm').reset();
+        setTimeout(() => {
+          document.getElementById('changePasswordForm').reset();
+          document.getElementById('showPasswordBtn').style.display = 'inline-block';
+          document.getElementById('changePasswordForm').style.display = 'none';
+        }, 1500);
       } catch (err) {
         window.showMessage(err.message, 'error');
       }
