@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StorySpeak English - 故事英语口语学习平台</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
   <div class="auth-page">
@@ -19,8 +19,8 @@
 
       <form id="loginForm" class="auth-form active">
         <div class="form-group">
-          <label>用户名/邮箱</label>
-          <input type="text" id="loginInput" placeholder="请输入用户名或邮箱" required>
+          <label>邮箱</label>
+          <input type="email" id="loginInput" placeholder="请输入邮箱" required>
         </div>
         <div class="form-group">
           <label>密码</label>
@@ -50,8 +50,8 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
-  <script>
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
     const tabs = document.querySelectorAll('.auth-tab');
     const forms = {
       login: document.getElementById('loginForm'),
@@ -70,24 +70,20 @@
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const login = document.getElementById('loginInput').value;
+      const email = document.getElementById('loginInput').value;
       const password = document.getElementById('loginPassword').value;
       
       try {
-        const data = await api('/api/login', {
+        const data = await window.api('/api/login', {
           method: 'POST',
-          body: { login, password }
+          body: { login: email, password }
         });
-        setToken(data.token);
-        if (data.user) {
-          localStorage.setItem('storyspeak_user', JSON.stringify(data.user));
-        }
-        showMessage('登录成功！正在跳转...', 'success');
+        window.showMessage('登录成功！正在跳转...', 'success');
         setTimeout(() => {
-          window.location.href = '/stories.html';
+          window.location.href = './stories.html';
         }, 500);
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     });
 
@@ -98,29 +94,27 @@
       const password = document.getElementById('regPassword').value;
       
       try {
-        await api('/api/register', {
+        await window.api('/api/register', {
           method: 'POST',
           body: { username, email, password }
         });
-        showMessage('注册成功！请登录', 'success');
+        window.showMessage('注册成功！请登录', 'success');
         setTimeout(() => {
           tabs[0].click();
         }, 1000);
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     });
 
-    const token = getToken();
+    // Check existing session
+    const token = window.getToken();
     if (token) {
-      fetch('/api/user/profile', { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(user => {
-          if (user) {
-            window.location.href = '/stories.html';
-          }
-        })
-        .catch(() => {});
+      window.api('/api/user/profile').then(user => {
+        if (user) {
+          window.location.href = './stories.html';
+        }
+      }).catch(() => {});
     }
   </script>
 </body>

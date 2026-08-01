@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 - StorySpeak English</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
   <style>
     .story-form textarea {
       width: 100%;
@@ -13,32 +13,6 @@
       border: 2px solid #e0e4e8;
       border-radius: 8px;
       font-size: 14px;
-      resize: vertical;
-    }
-    .story-form textarea:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-    .sentence-editor {
-      margin-top: 16px;
-    }
-    .sentence-row {
-      display: grid;
-      grid-template-columns: 40px 1fr 1fr 80px;
-      gap: 8px;
-      margin-bottom: 8px;
-      align-items: start;
-    }
-    .sentence-row input,
-    .sentence-row textarea {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #e0e4e8;
-      border-radius: 6px;
-      font-size: 13px;
-    }
-    .sentence-row textarea {
-      min-height: 50px;
       resize: vertical;
     }
     .tab-buttons {
@@ -68,10 +42,9 @@
       <div class="sidebar-logo">📚 StorySpeak 管理</div>
       <ul class="sidebar-nav">
         <li class="active" data-page="dashboard"><span class="icon">📊</span>仪表盘</li>
-        <li data-page="stories"><span class="icon">📖</span>故事管理</li>
         <li data-page="codes"><span class="icon">🔑</span>兑换码</li>
         <li data-page="users"><span class="icon">👥</span>用户管理</li>
-        <li data-page="goto-learn" onclick="window.location.href='/stories.html'"><span class="icon">📚</span>返回学习</li>
+        <li data-page="goto-learn" onclick="window.location.href='./stories.html'"><span class="icon">📚</span>返回学习</li>
         <li data-page="logout" onclick="logout()"><span class="icon">🚪</span>退出登录</li>
       </ul>
     </aside>
@@ -80,16 +53,6 @@
       <div id="dashboard" class="admin-page active">
         <h2 style="margin-bottom: 24px;">📊 数据概览</h2>
         <div id="statsGrid" class="stats-grid"></div>
-        <h3 style="margin: 32px 0 16px;">🔥 热门故事 TOP 5</h3>
-        <div id="popularStories"></div>
-      </div>
-
-      <div id="stories" class="admin-page">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-          <h2>📖 故事管理</h2>
-          <button id="addStoryBtn" class="btn btn-primary">+ 添加故事</button>
-        </div>
-        <div id="storiesTable"></div>
       </div>
 
       <div id="codes" class="admin-page">
@@ -120,75 +83,24 @@
     </main>
   </div>
 
-  <div id="storyModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="modalTitle">添加故事</h2>
-        <button class="modal-close" onclick="closeStoryModal()">✕</button>
-      </div>
-      <div class="story-form">
-        <div class="form-group">
-          <label>故事标题 (英文)</label>
-          <input type="text" id="storyTitle" placeholder="例如: A Day at the Beach">
-        </div>
-        <div class="form-group">
-          <label>故事标题 (中文)</label>
-          <input type="text" id="storyTitleCn" placeholder="例如: 海滩的一天">
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div class="form-group">
-            <label>难度</label>
-            <select id="storyDifficulty">
-              <option value="easy">简单</option>
-              <option value="medium">中等</option>
-              <option value="hard">困难</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>类别</label>
-            <select id="storyCategory">
-              <option value="daily">日常生活</option>
-              <option value="travel">旅行</option>
-              <option value="business">商务</option>
-              <option value="social">社交</option>
-              <option value="academic">学术</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>封面图片 URL (可选)</label>
-          <input type="text" id="storyCover" placeholder="https://...">
-        </div>
-        <div class="form-group">
-          <h3 style="margin-bottom: 16px;">✏️ 句子内容</h3>
-          <div id="sentencesEditor" class="sentence-editor"></div>
-          <button id="addSentenceBtn" class="btn btn-secondary" style="width: 100%; margin-top: 8px;">+ 添加句子</button>
-        </div>
-        <button id="saveStoryBtn" class="btn btn-primary" style="width: 100%; margin-top: 16px;">保存故事</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/js/api.js"></script>
-  <script>
-    let editingStoryId = null;
-    let currentSentences = [];
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
     let currentCodeFilter = '';
 
     async function init() {
-      if (!checkAuth()) return;
+      if (!window.checkAuth()) return;
       
       try {
-        const user = await api('/api/user/profile');
+        const user = await window.api('/api/user/profile');
         if (!user.is_admin) {
-          showMessage('您没有管理员权限', 'error');
+          window.showMessage('您没有管理员权限', 'error');
           setTimeout(() => {
-            window.location.href = '/stories.html';
+            window.location.href = './stories.html';
           }, 2000);
           return;
         }
       } catch (err) {
-        window.location.href = '/';
+        window.location.href = './';
         return;
       }
 
@@ -208,7 +120,6 @@
           document.querySelectorAll('.admin-page').forEach(p => p.classList.remove('active'));
           document.getElementById(page).classList.add('active');
           
-          if (page === 'stories') loadStories();
           if (page === 'codes') loadCodes();
           if (page === 'users') loadUsers();
         });
@@ -217,7 +128,7 @@
 
     async function loadDashboard() {
       try {
-        const stats = await api('/api/admin/stats');
+        const stats = await window.api('/api/admin/stats');
         
         document.getElementById('statsGrid').innerHTML = `
           <div class="stat-card">
@@ -245,212 +156,20 @@
             <div class="stat-label">今日新增</div>
           </div>
         `;
-        
-        document.getElementById('popularStories').innerHTML = `
-          <table>
-            <thead>
-              <tr><th>排名</th><th>故事标题</th><th>学习人数</th></tr>
-            </thead>
-            <tbody>
-              ${stats.popularStories.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#888;">暂无数据</td></tr>' : 
-                stats.popularStories.map((s, i) => `
-                  <tr>
-                    <td>${i + 1}</td>
-                    <td>${s.title}</td>
-                    <td>${s.progress_count}</td>
-                  </tr>
-                `).join('')
-              }
-            </tbody>
-          </table>
-        `;
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     }
-
-    async function loadStories() {
-      try {
-        const stories = await api('/api/admin/stories');
-        const table = document.getElementById('storiesTable');
-        
-        if (stories.length === 0) {
-          table.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📚</div><div>暂无故事，点击上方按钮添加</div></div>';
-          return;
-        }
-        
-        table.innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>标题</th>
-                <th>难度</th>
-                <th>类别</th>
-                <th>句子数</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${stories.map(s => `
-                <tr>
-                  <td>${s.id}</td>
-                  <td>${s.title}</td>
-                  <td>${s.difficulty}</td>
-                  <td>${s.category}</td>
-                  <td>${s.sentence_count}</td>
-                  <td>
-                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="editStory(${s.id})">编辑</button>
-                    <button class="btn btn-danger" style="padding:6px 12px;font-size:13px;" onclick="deleteStory(${s.id})">删除</button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
-      } catch (err) {
-        showMessage(err.message, 'error');
-      }
-    }
-
-    document.getElementById('addStoryBtn').addEventListener('click', () => {
-      editingStoryId = null;
-      document.getElementById('modalTitle').textContent = '添加故事';
-      document.getElementById('storyTitle').value = '';
-      document.getElementById('storyTitleCn').value = '';
-      document.getElementById('storyDifficulty').value = 'easy';
-      document.getElementById('storyCategory').value = 'daily';
-      document.getElementById('storyCover').value = '';
-      currentSentences = [];
-      renderSentenceEditor();
-      document.getElementById('storyModal').classList.add('active');
-    });
-
-    document.getElementById('addSentenceBtn').addEventListener('click', () => {
-      currentSentences.push({
-        sentence_index: currentSentences.length,
-        english: '',
-        chinese: '',
-        audio_file: ''
-      });
-      renderSentenceEditor();
-    });
-
-    function renderSentenceEditor() {
-      const container = document.getElementById('sentencesEditor');
-      if (currentSentences.length === 0) {
-        container.innerHTML = '<div style="color:#888;text-align:center;padding:16px;">暂无句子，点击下方按钮添加</div>';
-        return;
-      }
-      container.innerHTML = currentSentences.map((s, i) => `
-        <div class="sentence-row">
-          <input type="number" value="${i + 1}" disabled style="text-align:center;">
-          <textarea placeholder="英文句子" oninput="updateSentence(${i}, 'english', this.value)">${s.english}</textarea>
-          <textarea placeholder="中文翻译" oninput="updateSentence(${i}, 'chinese', this.value)">${s.chinese}</textarea>
-          <button class="btn btn-danger" style="padding:8px;font-size:12px;" onclick="removeSentence(${i})">删除</button>
-        </div>
-      `).join('');
-    }
-
-    window.updateSentence = function(index, field, value) {
-      currentSentences[index][field] = value;
-    };
-
-    window.removeSentence = function(index) {
-      currentSentences.splice(index, 1);
-      currentSentences.forEach((s, i) => s.sentence_index = i);
-      renderSentenceEditor();
-    };
-
-    window.closeStoryModal = function() {
-      document.getElementById('storyModal').classList.remove('active');
-    };
-
-    window.editStory = async function(id) {
-      try {
-        const story = await api(`/api/stories/${id}`);
-        editingStoryId = id;
-        document.getElementById('modalTitle').textContent = '编辑故事';
-        document.getElementById('storyTitle').value = story.title;
-        document.getElementById('storyTitleCn').value = story.title_cn || '';
-        document.getElementById('storyDifficulty').value = story.difficulty;
-        document.getElementById('storyCategory').value = story.category;
-        document.getElementById('storyCover').value = story.cover_image || '';
-        currentSentences = story.sentences.map(s => ({ ...s }));
-        renderSentenceEditor();
-        document.getElementById('storyModal').classList.add('active');
-      } catch (err) {
-        showMessage(err.message, 'error');
-      }
-    };
-
-    window.deleteStory = async function(id) {
-      if (!confirm('确定要删除这个故事吗？此操作不可恢复！')) return;
-      try {
-        await api(`/api/admin/stories/${id}`, { method: 'DELETE' });
-        showMessage('删除成功', 'success');
-        loadStories();
-      } catch (err) {
-        showMessage(err.message, 'error');
-      }
-    };
-
-    document.getElementById('saveStoryBtn').addEventListener('click', async () => {
-      const title = document.getElementById('storyTitle').value.trim();
-      const title_cn = document.getElementById('storyTitleCn').value.trim();
-      const difficulty = document.getElementById('storyDifficulty').value;
-      const category = document.getElementById('storyCategory').value;
-      const cover_image = document.getElementById('storyCover').value.trim();
-      
-      if (!title) {
-        showMessage('请输入故事标题', 'error');
-        return;
-      }
-      
-      const validSentences = currentSentences.filter(s => s.english.trim());
-      if (validSentences.length === 0) {
-        showMessage('请至少添加一句有内容的句子', 'error');
-        return;
-      }
-      
-      try {
-        if (editingStoryId) {
-          await api(`/api/admin/stories/${editingStoryId}`, {
-            method: 'PUT',
-            body: { title, title_cn, difficulty, category, cover_image }
-          });
-          await api(`/api/admin/stories/${editingStoryId}/sentences`, {
-            method: 'POST',
-            body: { sentences: validSentences }
-          });
-          showMessage('更新成功', 'success');
-        } else {
-          const result = await api('/api/admin/stories', {
-            method: 'POST',
-            body: { title, title_cn, difficulty, category, cover_image }
-          });
-          await api(`/api/admin/stories/${result.id}/sentences`, {
-            method: 'POST',
-            body: { sentences: validSentences }
-          });
-          showMessage('创建成功', 'success');
-        }
-        closeStoryModal();
-        loadStories();
-      } catch (err) {
-        showMessage(err.message, 'error');
-      }
-    });
 
     document.getElementById('generateCodesBtn').addEventListener('click', async () => {
-      const count = parseInt(document.getElementById('codeCount').value) || '10';
+      const count = parseInt(document.getElementById('codeCount').value) || 10;
       if (count < 1 || count > 1000) {
-        showMessage('请输入1-1000之间的数字', 'error');
+        window.showMessage('请输入1-1000之间的数字', 'error');
         return;
       }
       
       try {
-        const result = await api('/api/admin/generate-codes', {
+        const result = await window.api('/api/admin/generate-codes', {
           method: 'POST',
           body: { count }
         });
@@ -464,19 +183,22 @@
         a.click();
         URL.revokeObjectURL(url);
         
-        showMessage(`成功生成 ${count} 个兑换码，已自动下载`, 'success');
+        window.showMessage(`成功生成 ${count} 个兑换码，已自动下载`, 'success');
         loadCodes();
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     });
 
     async function loadCodes() {
       try {
-        const codes = await api(`/api/admin/codes${currentCodeFilter ? '?status=' + currentCodeFilter : ''}`);
+        const endpoint = currentCodeFilter 
+          ? `/api/admin/codes?status=${currentCodeFilter}` 
+          : '/api/admin/codes';
+        const codes = await window.api(endpoint);
         const table = document.getElementById('codesTable');
         
-        if (codes.length === 0) {
+        if (!codes || codes.length === 0) {
           table.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔑</div><div>暂无兑换码</div></div>';
           return;
         }
@@ -485,30 +207,24 @@
           <table>
             <thead>
               <tr>
-                <th>ID</th>
                 <th>兑换码</th>
                 <th>状态</th>
-                <th>使用者</th>
                 <th>使用时间</th>
-                <th>创建时间</th>
               </tr>
             </thead>
             <tbody>
               ${codes.map(c => `
                 <tr>
-                  <td>${c.id}</td>
                   <td style="font-family:monospace;letter-spacing:1px;">${c.code}</td>
                   <td>${c.status === 'used' ? '<span class="badge badge-hard">已使用</span>' : '<span class="badge badge-easy">未使用</span>'}</td>
-                  <td>${c.used_by_name || '-'}</td>
                   <td>${c.used_at || '-'}</td>
-                  <td>${c.created_at}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         `;
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     }
 
@@ -523,10 +239,10 @@
 
     async function loadUsers() {
       try {
-        const users = await api('/api/admin/users');
+        const users = await window.api('/api/admin/users');
         const table = document.getElementById('usersTable');
         
-        if (users.length === 0) {
+        if (!users || users.length === 0) {
           table.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><div>暂无用户</div></div>';
           return;
         }
@@ -535,12 +251,9 @@
           <table>
             <thead>
               <tr>
-                <th>ID</th>
                 <th>用户名</th>
                 <th>邮箱</th>
                 <th>状态</th>
-                <th>学习故事</th>
-                <th>学习时长(秒)</th>
                 <th>注册时间</th>
                 <th>操作</th>
               </tr>
@@ -548,13 +261,10 @@
             <tbody>
               ${users.map(u => `
                 <tr>
-                  <td>${u.id}</td>
-                  <td>${u.username}</td>
+                  <td>${u.username || '-'}</td>
                   <td>${u.email}</td>
                   <td>${u.is_active ? '<span class="badge badge-easy">已激活</span>' : '<span class="badge badge-hard">未激活</span>'}</td>
-                  <td>${u.story_count}</td>
-                  <td>${u.total_time}</td>
-                  <td>${u.created_at}</td>
+                  <td>${u.created_at?.split('T')[0] || '-'}</td>
                   <td>
                     <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="toggleUserActive(${u.id})">
                       ${u.is_active ? '禁用' : '启用'}
@@ -566,23 +276,23 @@
           </table>
         `;
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     }
 
     window.toggleUserActive = async function(id) {
       try {
-        const result = await api(`/api/admin/users/${id}/toggle-active`, { method: 'POST' });
-        showMessage(result.is_active ? '已启用' : '已禁用', 'success');
+        await window.api(`/api/admin/users/${id}/toggle-active`, { method: 'POST' });
+        window.showMessage('操作成功', 'success');
         loadUsers();
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     };
 
     window.logout = function() {
-      clearToken();
-      window.location.href = '/';
+      window.clearToken();
+      window.location.href = './';
     };
 
     init();

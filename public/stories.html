@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>故事列表 - StorySpeak English</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
   <header class="header">
     <div class="header-content">
-      <a href="/stories.html" class="logo">StorySpeak</a>
+      <a href="./stories.html" class="logo">StorySpeak</a>
       <nav class="nav">
-        <a href="/stories.html" class="active">故事库</a>
-        <a href="/favorites.html">收藏夹</a>
-        <a href="/profile.html">个人中心</a>
-        <a href="/admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="./stories.html" class="active">故事库</a>
+        <a href="./favorites.html">收藏夹</a>
+        <a href="./profile.html">个人中心</a>
+        <a href="./admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
         <a href="#" id="logoutBtn">退出</a>
       </nav>
     </div>
@@ -57,31 +57,32 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
-  <script>
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
     let allStories = [];
+    let userData = null;
 
     async function init() {
-      if (!checkAuth()) return;
+      if (!window.checkAuth()) return;
 
       document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
-        logout();
+        window.logout();
       });
 
       try {
-        const user = await api('/api/user/profile');
-        const isActive = user.is_active === 1 || user.is_active === true;
-        if (user.is_admin) {
+        userData = await window.api('/api/user/profile');
+        const isActive = userData.is_active === 1 || userData.is_active === true;
+        if (userData.is_admin) {
           document.getElementById('adminLink').style.display = 'inline';
         }
-        if (!isActive && !user.is_admin) {
+        if (!isActive && !userData.is_admin) {
           document.getElementById('codeRedeemSection').style.display = 'block';
         }
-        displayProfile(user);
+        displayProfile(userData);
         loadStories();
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     }
 
@@ -97,10 +98,10 @@
             <p style="color: #888;">${isActive ? '✓ 已激活' : '⚠️ 未激活'}</p>
           </div>
           <div style="display: flex; gap: 24px; flex-wrap: wrap;">
-            <div class="stat-item"><strong>${user.stats.totalStories}</strong> 学习故事</div>
-            <div class="stat-item"><strong>${user.stats.completedStories}</strong> 完成</div>
-            <div class="stat-item"><strong>${Math.floor(user.stats.totalTime / 60)}</strong> 分钟学习</div>
-            <div class="stat-item"><strong>${user.stats.favorites}</strong> 收藏</div>
+            <div class="stat-item"><strong>${user.stats?.totalStories || 0}</strong> 学习故事</div>
+            <div class="stat-item"><strong>${user.stats?.completedStories || 0}</strong> 完成</div>
+            <div class="stat-item"><strong>${Math.floor((user.stats?.totalTime || 0) / 60)}</strong> 分钟学习</div>
+            <div class="stat-item"><strong>${user.stats?.favorites || 0}</strong> 收藏</div>
           </div>
         </div>
       `;
@@ -108,16 +109,13 @@
 
     async function loadStories() {
       try {
-        allStories = await api('/api/stories');
+        // Load stories from local data.json
+        const response = await fetch('./js/data.json');
+        const data = await response.json();
+        allStories = data.stories || [];
         renderStories(allStories);
       } catch (err) {
-        if (err.message && err.message.includes('未激活')) {
-          document.getElementById('storyGrid').style.display = 'none';
-          document.getElementById('emptyState').style.display = 'block';
-          document.getElementById('emptyState').innerHTML = '<div class="empty-state-icon">🔒</div><div>请先激活账户以查看故事</div>';
-        } else {
-          showMessage(err.message, 'error');
-        }
+        window.showMessage('加载故事失败', 'error');
       }
     }
 
@@ -138,7 +136,7 @@
         const difficultyText = { easy: '简单', medium: '中等', hard: '困难' }[s.difficulty] || s.difficulty;
         const categoryText = { daily: '日常生活', travel: '旅行', business: '商务', social: '社交', academic: '学术' }[s.category] || s.category;
         return `
-          <a href="/story.html?id=${s.id}" class="story-card">
+          <a href="./story.html?id=${s.id}" class="story-card">
             <div class="story-cover" style="background: linear-gradient(135deg, var(--color1, #667eea), var(--color2, #764ba2));">
               <span>${getEmoji(s.category)}</span>
             </div>
@@ -147,10 +145,6 @@
               <div class="story-meta">
                 <span class="badge badge-${s.difficulty}">${difficultyText}</span>
                 <span class="badge badge-category">${categoryText}</span>
-                ${s.is_favorite ? '<span class="badge" style="background:#ffe0e0;color:#ff4757;">♥ 收藏</span>' : ''}
-              </div>
-              <div class="story-progress">
-                <div class="progress-bar" style="width: ${s.is_completed ? 100 : 0}%"></div>
               </div>
             </div>
           </a>
@@ -192,26 +186,20 @@
     document.getElementById('redeemBtn').addEventListener('click', async () => {
       const code = document.getElementById('codeInput').value.trim();
       if (!code) {
-        showMessage('请输入兑换码', 'error');
+        window.showMessage('请输入兑换码', 'error');
         return;
       }
       try {
-        const result = await api('/api/redeem', {
+        await window.api('/api/redeem', {
           method: 'POST',
           body: { code }
         });
-        showMessage('兑换码激活成功！', 'success');
-        
-        // Fetch fresh user data from server
-        const freshUser = await api('/api/user/profile');
-        localStorage.setItem('storyspeak_user', JSON.stringify(freshUser));
-        
-        // Refresh the page after a short delay
+        window.showMessage('兑换码激活成功！', 'success');
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     });
 

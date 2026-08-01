@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>个人中心 - StorySpeak English</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
   <style>
     .profile-section {
       background: white;
@@ -42,12 +42,12 @@
 <body>
   <header class="header">
     <div class="header-content">
-      <a href="/stories.html" class="logo">StorySpeak</a>
+      <a href="./stories.html" class="logo">StorySpeak</a>
       <nav class="nav">
-        <a href="/stories.html">故事库</a>
-        <a href="/favorites.html">收藏夹</a>
-        <a href="/profile.html" class="active">个人中心</a>
-        <a href="/admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="./stories.html">故事库</a>
+        <a href="./favorites.html">收藏夹</a>
+        <a href="./profile.html" class="active">个人中心</a>
+        <a href="./admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
         <a href="#" id="logoutBtn">退出</a>
       </nav>
     </div>
@@ -74,50 +74,50 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
-  <script>
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
     async function init() {
-      if (!checkAuth()) return;
+      if (!window.checkAuth()) return;
 
       document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
-        logout();
+        window.logout();
       });
 
       try {
-        const user = await api('/api/user/profile');
+        const user = await window.api('/api/user/profile');
         if (user.is_admin) {
           document.getElementById('adminLink').style.display = 'inline';
         }
         displayUserInfo(user);
         loadWords();
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     }
 
     function displayUserInfo(user) {
       document.getElementById('userDetails').innerHTML = `
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-          <div><strong>用户名：</strong>${user.username}</div>
+          <div><strong>用户名：</strong>${user.username || '未设置'}</div>
           <div><strong>邮箱：</strong>${user.email}</div>
           <div><strong>状态：</strong>${user.is_admin ? '管理员' : (user.is_active ? '✓ 已激活' : '⚠️ 未激活')}</div>
         </div>
         <div id="statsDisplay" style="margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
           <div class="stat-card" style="text-align: center;">
-            <div class="stat-value">${user.stats.totalStories}</div>
+            <div class="stat-value">${user.stats?.totalStories || 0}</div>
             <div class="stat-label">学习故事数</div>
           </div>
           <div class="stat-card" style="text-align: center;">
-            <div class="stat-value">${user.stats.completedStories}</div>
+            <div class="stat-value">${user.stats?.completedStories || 0}</div>
             <div class="stat-label">完成故事数</div>
           </div>
           <div class="stat-card" style="text-align: center;">
-            <div class="stat-value">${Math.floor(user.stats.totalTime / 60)}</div>
+            <div class="stat-value">${Math.floor((user.stats?.totalTime || 0) / 60)}</div>
             <div class="stat-label">学习分钟数</div>
           </div>
           <div class="stat-card" style="text-align: center;">
-            <div class="stat-value">${user.stats.favorites}</div>
+            <div class="stat-value">${user.stats?.favorites || 0}</div>
             <div class="stat-label">收藏故事数</div>
           </div>
         </div>
@@ -126,7 +126,7 @@
 
     async function loadWords() {
       try {
-        const words = await api('/api/words');
+        const words = await window.api('/api/words');
         const list = document.getElementById('wordList');
         const empty = document.getElementById('emptyWords');
         
@@ -144,7 +144,6 @@
           </div>
         `).join('');
       } catch (err) {
-        // Silently fail - words feature optional
         document.getElementById('wordList').style.display = 'none';
         document.getElementById('emptyWords').style.display = 'block';
       }
@@ -161,11 +160,11 @@
     window.removeWord = async function(id, word) {
       if (!confirm(`确定要删除单词 "${word}" 吗？`)) return;
       try {
-        await api(`/api/words/${encodeURIComponent(word)}`, { method: 'DELETE' });
+        await window.api(`/api/words/${encodeURIComponent(word)}`, { method: 'DELETE' });
         loadWords();
-        showMessage('已删除', 'success');
+        window.showMessage('已删除', 'success');
       } catch (err) {
-        showMessage(err.message, 'error');
+        window.showMessage(err.message, 'error');
       }
     };
 

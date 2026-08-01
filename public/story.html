@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>故事阅读 - StorySpeak English</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
   <header class="header">
     <div class="header-content">
-      <a href="/stories.html" class="logo">StorySpeak</a>
+      <a href="./stories.html" class="logo">StorySpeak</a>
       <nav class="nav">
-        <a href="/stories.html">故事库</a>
-        <a href="/favorites.html">收藏夹</a>
-        <a href="/profile.html">个人中心</a>
-        <a href="/admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="./stories.html">故事库</a>
+        <a href="./favorites.html">收藏夹</a>
+        <a href="./profile.html">个人中心</a>
+        <a href="./admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
         <a href="#" id="logoutBtn">退出</a>
       </nav>
     </div>
@@ -38,68 +38,71 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
-  <script>
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
     const urlParams = new URLSearchParams(window.location.search);
-    const storyId = urlParams.get('id');
+    const storyId = parseInt(urlParams.get('id'));
     let storyData = null;
     let currentSentenceIndex = 0;
     let showChinese = true;
     let mediaRecorder = null;
     let recordedChunks = [];
     let isRecording = false;
-    let recordingTimeouts = {};
     let startTime = Date.now();
 
     async function init() {
-      // Activate speech synthesis on page load
       if (window.speechSynthesis) {
         window.speechSynthesis.getVoices();
       }
-      if (!checkAuth()) return;
+      if (!window.checkAuth()) return;
       if (!storyId) {
-        window.location.href = '/stories.html';
+        window.location.href = './stories.html';
         return;
       }
 
       document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
-        logout();
+        window.logout();
       });
 
       try {
-        const user = await api('/api/user/profile');
+        const user = await window.api('/api/user/profile');
         if (user.is_admin) {
           document.getElementById('adminLink').style.display = 'inline';
         }
         
-        // Check if user is activated
         if (!user.is_active && !user.is_admin) {
           document.getElementById('storyContainer').innerHTML = `
             <div style="text-align: center; padding: 40px;">
               <h2>⚠️ 账户未激活</h2>
               <p>请先使用兑换码激活您的账户</p>
-              <p>兑换码入口：<a href="/profile.html">个人中心</a></p>
+              <p>兑换码入口：<a href="./profile.html">个人中心</a></p>
             </div>
           `;
           return;
         }
         
-        storyData = await api(`/api/stories/${storyId}`);
-        renderStory();
+        await loadStory();
         setupEventListeners();
       } catch (err) {
-        showMessage(err.message, 'error');
-        if (err.message.includes('激活')) {
-          // Show activation prompt
-          document.getElementById('storyContainer').innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-              <h2>⚠️ 账户未激活</h2>
-              <p>请先使用兑换码激活您的账户</p>
-              <p>兑换码入口：<a href="/profile.html">个人中心</a></p>
-            </div>
-          `;
+        window.showMessage(err.message, 'error');
+      }
+    }
+
+    async function loadStory() {
+      try {
+        const response = await fetch('./js/data.json');
+        const data = await response.json();
+        storyData = data.stories.find(s => s.id === storyId);
+        
+        if (!storyData) {
+          window.showMessage('故事不存在', 'error');
+          return;
         }
+        
+        renderStory();
+      } catch (err) {
+        window.showMessage('加载故事失败', 'error');
       }
     }
 
@@ -115,11 +118,8 @@
         <span class="badge badge-category">${categoryText}</span>
       `;
       
-      document.getElementById('favoriteBtn').textContent = storyData.is_favorite ? '♥' : '♡';
-      document.getElementById('favoriteBtn').style.color = storyData.is_favorite ? '#ff4757' : '';
-      
       const container = document.getElementById('sentencesContainer');
-      container.innerHTML = storyData.sentences.map((s, i) => `
+      container.innerHTML = (storyData.sentences || []).map((s, i) => `
         <div class="sentence-item" data-index="${i}">
           <div style="display: flex; justify-content: space-between; align-items: start; gap: 12px;">
             <div style="flex: 1;">
@@ -142,9 +142,6 @@
           <div id="compare-${i}" class="compare-section hidden"></div>
         </div>
       `).join('');
-      
-      currentSentenceIndex = storyData.progress?.last_sentence_index || 0;
-      scrollToSentence(currentSentenceIndex);
     }
 
     function setupEventListeners() {
@@ -157,29 +154,28 @@
 
       document.getElementById('favoriteBtn').addEventListener('click', async () => {
         try {
-          const result = await api(`/api/stories/${storyId}/favorite`, { method: 'POST' });
-          storyData.is_favorite = result.is_favorite;
-          document.getElementById('favoriteBtn').textContent = result.is_favorite ? '♥' : '♡';
-          document.getElementById('favoriteBtn').style.color = result.is_favorite ? '#ff4757' : '';
-          showMessage(result.is_favorite ? '已收藏' : '已取消收藏', 'success');
+          await window.api(`/api/favorites/${storyId}`, { method: 'POST' });
+          document.getElementById('favoriteBtn').textContent = '♥';
+          document.getElementById('favoriteBtn').style.color = '#ff4757';
+          window.showMessage('已收藏', 'success');
         } catch (err) {
-          showMessage(err.message, 'error');
+          window.showMessage(err.message, 'error');
         }
       });
 
       document.getElementById('markComplete').addEventListener('click', async () => {
         try {
-          await api(`/api/stories/${storyId}/progress`, {
+          await window.api(`/api/progress/${storyId}`, {
             method: 'POST',
             body: {
-              last_sentence_index: storyData.sentences.length - 1,
-              is_completed: 1,
-              read_time: Math.floor((Date.now() - startTime) / 1000)
+              last_sentence_index: (storyData.sentences || []).length - 1,
+              is_completed: true,
+              total_time: Math.floor((Date.now() - startTime) / 1000)
             }
           });
-          showMessage('恭喜完成本篇故事！', 'success');
+          window.showMessage('恭喜完成本篇故事！', 'success');
         } catch (err) {
-          showMessage(err.message, 'error');
+          window.showMessage(err.message, 'error');
         }
       });
 
@@ -195,10 +191,7 @@
       if (!sentence) return;
       const text = sentence.english;
       
-      // Stop any current speech
       window.speechSynthesis.cancel();
-      
-      // Small delay to ensure cancel completes
       await new Promise(r => setTimeout(r, 100));
       
       const utterance = new SpeechSynthesisUtterance(text);
@@ -206,18 +199,17 @@
       utterance.rate = 0.9;
       utterance.pitch = 1;
       
-      // Try to find Microsoft English voice first, then Google, then any English
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(v => v.name.includes('Microsoft') && v.lang.includes('en')) ||
                            voices.find(v => v.name.includes('Google') && v.lang.includes('en')) ||
                            voices.find(v => v.lang.includes('en'));
       if (preferredVoice) utterance.voice = preferredVoice;
       
-      utterance.onstart = () => showMessage('🔊 播放: ' + text.substring(0, 25) + '...', 'success');
+      utterance.onstart = () => window.showMessage('🔊 播放: ' + text.substring(0, 25) + '...', 'success');
       utterance.onend = () => console.log('Speech completed');
       utterance.onerror = (e) => {
         console.error('Speech error:', e.error);
-        showMessage('播放失败，请检查浏览器设置', 'error');
+        window.showMessage('播放失败', 'error');
       };
       
       window.speechSynthesis.speak(utterance);
@@ -227,18 +219,16 @@
 
     async function playAllSentences() {
       if (!('speechSynthesis' in window)) {
-        showMessage('您的浏览器不支持语音播放', 'error');
+        window.showMessage('您的浏览器不支持语音播放', 'error');
         return;
       }
       
       window.speechSynthesis.cancel();
       
       for (let i = 0; i < storyData.sentences.length; i++) {
-        const sentence = storyData.sentences[i];
-        const utterance = new SpeechSynthesisUtterance(sentence.english);
+        const utterance = new SpeechSynthesisUtterance(storyData.sentences[i].english);
         utterance.lang = 'en-US';
         utterance.rate = 0.9;
-        utterance.pitch = 1;
         
         window.speechSynthesis.speak(utterance);
         
@@ -251,7 +241,7 @@
         saveProgress();
       }
       
-      showMessage('播放完成！', 'success');
+      window.showMessage('播放完成！', 'success');
     }
 
     async function toggleRecording(index) {
@@ -285,9 +275,9 @@
         btn.classList.add('recording');
         btn.innerHTML = '<span style="color: #e91e63;">⏹</span>';
         
-        showMessage('正在录音，再次点击停止...', 'success');
+        window.showMessage('正在录音，再次点击停止...', 'success');
       } catch (err) {
-        showMessage('无法访问麦克风：' + err.message, 'error');
+        window.showMessage('无法访问麦克风：' + err.message, 'error');
       }
     }
 
@@ -304,18 +294,13 @@
     }
 
     function showRecordingResult(index, userAudioUrl) {
-      const sentence = storyData.sentences[index];
       const compareDiv = document.getElementById(`compare-${index}`);
       compareDiv.classList.remove('hidden');
-      
-      const nativeSentence = sentence.audio_file 
-        ? `<audio controls src="${sentence.audio_file}"></audio>`
-        : `<div style="color: #888; font-size: 13px;">点击上方 ▶ 按钮播放原声（使用浏览器语音合成）</div>`;
       
       compareDiv.innerHTML = `
         <div class="compare-item">
           <div class="compare-title">🎵 原声</div>
-          ${nativeSentence}
+          <div style="color: #888; font-size: 13px;">点击上方 ▶ 按钮播放原声（使用浏览器语音合成）</div>
         </div>
         <div class="compare-item">
           <div class="compare-title">🎤 你的录音</div>
@@ -328,23 +313,23 @@
       const sentence = storyData.sentences[index];
       const words = sentence.english.match(/[a-zA-Z']+/g) || [];
       
-      const addedWords = [];
+      let addedCount = 0;
       for (const word of words) {
         if (word.length > 2) {
           try {
-            await api('/api/words', {
+            await window.api('/api/words', {
               method: 'POST',
               body: { word: word.toLowerCase() }
             });
-            addedWords.push(word);
+            addedCount++;
           } catch (e) {}
         }
       }
       
-      if (addedWords.length > 0) {
-        showMessage(`已将 ${addedWords.length} 个单词加入生词本`, 'success');
+      if (addedCount > 0) {
+        window.showMessage(`已将 ${addedCount} 个单词加入生词本`, 'success');
       } else {
-        showMessage('没有新的单词可添加', 'success');
+        window.showMessage('没有新的单词可添加', 'success');
       }
     }
 
@@ -358,11 +343,11 @@
     async function saveProgress() {
       if (!storyData) return;
       try {
-        await api(`/api/stories/${storyId}/progress`, {
+        await window.api(`/api/progress/${storyId}`, {
           method: 'POST',
           body: {
             last_sentence_index: currentSentenceIndex,
-            read_time: Math.floor((Date.now() - startTime) / 1000)
+            total_time: Math.floor((Date.now() - startTime) / 1000)
           }
         });
         startTime = Date.now();
