@@ -113,7 +113,7 @@ async function api(endpoint, options = {}) {
       username: body.username,
       email: regEmail,
       password: body.password,
-      is_active: true,
+      is_active: false,
       is_admin: false,
       created_at: new Date().toISOString()
     };
@@ -155,6 +155,11 @@ async function api(endpoint, options = {}) {
     const user = users.find(u => u.email === email);
     
     if (!user) throw new Error('用户不存在');
+    
+    // 激活用户
+    user.is_active = true;
+    setUsers(users);
+    setUser(user);
     
     return { success: true };
   }
