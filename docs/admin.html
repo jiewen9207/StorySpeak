@@ -88,24 +88,11 @@
     let currentCodeFilter = '';
 
     async function init() {
-      if (!window.checkAuth()) return;
-      
-      try {
-        const user = await window.api('/api/user/profile');
-        if (!user.is_admin) {
-          window.showMessage('您没有管理员权限', 'error');
-          setTimeout(() => {
-            window.location.href = './stories.html';
-          }, 2000);
-          return;
-        }
-      } catch (err) {
-        window.location.href = './';
-        return;
-      }
+      // Admin password
+    const ADMIN_PASSWORD = 'admin123';
 
-      setupNavigation();
-      loadDashboard();
+    setupNavigation();
+    loadDashboard();
     }
 
     function setupNavigation() {
@@ -128,7 +115,10 @@
 
     async function loadDashboard() {
       try {
-        const stats = await window.api('/api/admin/stats');
+        const stats = await window.api('/api/admin/stats', {
+          method: 'POST',
+          body: { admin_password: ADMIN_PASSWORD }
+        });
         
         document.getElementById('statsGrid').innerHTML = `
           <div class="stat-card">
@@ -171,7 +161,7 @@
       try {
         const result = await window.api('/api/admin/generate-codes', {
           method: 'POST',
-          body: { count }
+          body: { count, admin_password: ADMIN_PASSWORD }
         });
         
         const codesText = result.codes.join('\n');
@@ -192,10 +182,10 @@
 
     async function loadCodes() {
       try {
-        const endpoint = currentCodeFilter 
-          ? `/api/admin/codes?status=${currentCodeFilter}` 
-          : '/api/admin/codes';
-        const codes = await window.api(endpoint);
+        const codes = await window.api('/api/admin/codes', {
+          method: 'POST',
+          body: { admin_password: ADMIN_PASSWORD }
+        });
         const table = document.getElementById('codesTable');
         
         if (!codes || codes.length === 0) {
@@ -239,7 +229,10 @@
 
     async function loadUsers() {
       try {
-        const users = await window.api('/api/admin/users');
+        const users = await window.api('/api/admin/users', {
+          method: 'POST',
+          body: { admin_password: ADMIN_PASSWORD }
+        });
         const table = document.getElementById('usersTable');
         
         if (!users || users.length === 0) {
@@ -279,9 +272,6 @@
         window.showMessage(err.message, 'error');
       }
     }
-
-    // Admin password (for demo - in production use a secure method)
-    const ADMIN_PASSWORD = 'admin123';
 
     window.toggleUserActive = async function(id) {
       if (!confirm('确定要启用/禁用此用户吗？')) return;
