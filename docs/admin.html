@@ -86,13 +86,11 @@
   <script type="module" src="./js/supabase.js"></script>
   <script type="module">
     let currentCodeFilter = '';
-
-    async function init() {
-      // Admin password
     const ADMIN_PASSWORD = 'admin123';
 
-    setupNavigation();
-    loadDashboard();
+    async function init() {
+      setupNavigation();
+      loadDashboard();
     }
 
     function setupNavigation() {
