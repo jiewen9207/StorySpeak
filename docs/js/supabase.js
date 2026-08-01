@@ -17,11 +17,7 @@ function clearToken() {
   localStorage.removeItem('ss_token');
   localStorage.removeItem('ss_email');
   localStorage.removeItem('ss_user');
-  localStorage.removeItem('ss_users');
-  localStorage.removeItem('ss_codes');
-  localStorage.removeItem('ss_progress');
-  localStorage.removeItem('ss_favorites');
-  localStorage.removeItem('ss_words');
+  // Don't clear user data, codes, progress, favorites, words
 }
 
 function setUser(user) {
