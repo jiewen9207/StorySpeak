@@ -432,6 +432,9 @@ async function api(endpoint, options = {}) {
   }
   
   if (endpoint.match(/^\/api\/admin\/users\/\d+\/toggle-active$/) && method === 'POST') {
+    // Check admin password from body
+    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
+    
     const userId = parseInt(endpoint.split('/')[3]);
     const users = getUsers();
     const targetUser = users.find(u => u.id === userId);

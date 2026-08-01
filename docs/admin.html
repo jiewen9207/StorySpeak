@@ -280,9 +280,16 @@
       }
     }
 
+    // Admin password (for demo - in production use a secure method)
+    const ADMIN_PASSWORD = 'admin123';
+
     window.toggleUserActive = async function(id) {
+      if (!confirm('确定要启用/禁用此用户吗？')) return;
       try {
-        await window.api(`/api/admin/users/${id}/toggle-active`, { method: 'POST' });
+        await window.api(`/api/admin/users/${id}/toggle-active`, { 
+          method: 'POST',
+          body: { admin_password: ADMIN_PASSWORD }
+        });
         window.showMessage('操作成功', 'success');
         loadUsers();
       } catch (err) {
