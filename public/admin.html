@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 - StorySpeak English</title>
-  <link rel="stylesheet" href="./css/style.css">
+  <link rel="stylesheet" href="/css/style.css">
   <style>
     .story-form textarea {
       width: 100%;
@@ -71,7 +71,7 @@
         <li data-page="stories"><span class="icon">📖</span>故事管理</li>
         <li data-page="codes"><span class="icon">🔑</span>兑换码</li>
         <li data-page="users"><span class="icon">👥</span>用户管理</li>
-        <li data-page="goto-learn" onclick="window.location.href='./stories.html'"><span class="icon">📚</span>返回学习</li>
+        <li data-page="goto-learn" onclick="window.location.href='/stories.html'"><span class="icon">📚</span>返回学习</li>
         <li data-page="logout" onclick="logout()"><span class="icon">🚪</span>退出登录</li>
       </ul>
     </aside>
@@ -169,7 +169,7 @@
     </div>
   </div>
 
-  <script type="module" src="./js/supabase.js"></script>
+  <script src="/js/api.js"></script>
   <script>
     let editingStoryId = null;
     let currentSentences = [];

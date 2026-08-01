@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>故事阅读 - StorySpeak English</title>
-  <link rel="stylesheet" href="./css/style.css">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <header class="header">
@@ -38,7 +38,7 @@
     </div>
   </div>
 
-  <script type="module" src="./js/supabase.js"></script>
+  <script src="/js/api.js"></script>
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const storyId = urlParams.get('id');
@@ -79,7 +79,7 @@
             <div style="text-align: center; padding: 40px;">
               <h2>⚠️ 账户未激活</h2>
               <p>请先使用兑换码激活您的账户</p>
-              <p>兑换码入口：<a href="./profile.html">个人中心</a></p>
+              <p>兑换码入口：<a href="/profile.html">个人中心</a></p>
             </div>
           `;
           return;
@@ -96,7 +96,7 @@
             <div style="text-align: center; padding: 40px;">
               <h2>⚠️ 账户未激活</h2>
               <p>请先使用兑换码激活您的账户</p>
-              <p>兑换码入口：<a href="./profile.html">个人中心</a></p>
+              <p>兑换码入口：<a href="/profile.html">个人中心</a></p>
             </div>
           `;
         }
@@ -157,14 +157,11 @@
 
       document.getElementById('favoriteBtn').addEventListener('click', async () => {
         try {
-          const result = await api(`/api/favorites`, {
-            method: 'POST',
-            body: { story_id: parseInt(storyId) }
-          });
-          storyData.is_favorite = true;
-          document.getElementById('favoriteBtn').textContent = '♥';
-          document.getElementById('favoriteBtn').style.color = '#ff4757';
-          showMessage('已收藏', 'success');
+          const result = await api(`/api/stories/${storyId}/favorite`, { method: 'POST' });
+          storyData.is_favorite = result.is_favorite;
+          document.getElementById('favoriteBtn').textContent = result.is_favorite ? '♥' : '♡';
+          document.getElementById('favoriteBtn').style.color = result.is_favorite ? '#ff4757' : '';
+          showMessage(result.is_favorite ? '已收藏' : '已取消收藏', 'success');
         } catch (err) {
           showMessage(err.message, 'error');
         }
@@ -172,12 +169,12 @@
 
       document.getElementById('markComplete').addEventListener('click', async () => {
         try {
-          await api(`/api/progress/${storyId}`, {
+          await api(`/api/stories/${storyId}/progress`, {
             method: 'POST',
             body: {
               last_sentence_index: storyData.sentences.length - 1,
-              is_completed: true,
-              total_time: Math.floor((Date.now() - startTime) / 1000)
+              is_completed: 1,
+              read_time: Math.floor((Date.now() - startTime) / 1000)
             }
           });
           showMessage('恭喜完成本篇故事！', 'success');
@@ -361,11 +358,11 @@
     async function saveProgress() {
       if (!storyData) return;
       try {
-        await api(`/api/progress/${storyId}`, {
+        await api(`/api/stories/${storyId}/progress`, {
           method: 'POST',
           body: {
             last_sentence_index: currentSentenceIndex,
-            total_time: Math.floor((Date.now() - startTime) / 1000)
+            read_time: Math.floor((Date.now() - startTime) / 1000)
           }
         });
         startTime = Date.now();
