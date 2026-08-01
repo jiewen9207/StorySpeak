@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head><title>Redeem Test</title></head>
+<body>
+<h2>兑换测试</h2>
+<p>Token: <span id="tokenDisplay">-</span></p>
+<hr>
+<p>输入兑换码: <input type="text" id="codeInput" value="QBYAL9L4QN30" style="width: 200px;"></p>
+<button onclick="redeem()">兑换</button>
+<div id="result"></div>
+<script>
+function getToken() { return localStorage.getItem('storyspeak_token'); }
+
+async function redeem() {
+  const code = document.getElementById('codeInput').value;
+  const token = getToken();
+  
+  document.getElementById('tokenDisplay').textContent = token ? token.substring(0, 30) + '...' : '无token';
+  document.getElementById('result').innerHTML = '发送请求中...<br>Code: ' + code;
+  
+  if (!token) {
+    document.getElementById('result').innerHTML += '<br><b style="color:red">错误: 未登录</b>';
+    return;
+  }
+  
+  const requestBody = {code: code};
+  
+  try {
+    const r = await fetch('/api/redeem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(requestBody)
+    });
+    const data = await r.json();
+    document.getElementById('result').innerHTML = '<b>HTTP ' + r.status + '</b><br>' + JSON.stringify(data, null, 2);
+  } catch(e) {
+    document.getElementById('result').innerHTML = '<b style="color:red">Error: ' + e.message + '</b>';
+  }
+}
+
+// Show token on load
+const token = getToken();
+document.getElementById('tokenDisplay').textContent = token ? token.substring(0, 30) + '...' : '无token';
+</script>
+</body>
+</html>

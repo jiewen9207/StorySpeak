@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Redeem Code</title></head>
+<body>
+<h2>测试兑换码查询</h2>
+<input type="text" id="codeInput" placeholder="输入兑换码" value="QBYAL9L4QN30">
+<button onclick="testCode()">测试</button>
+<div id="result"></div>
+<script>
+async function testCode() {
+  const code = document.getElementById('codeInput').value;
+  document.getElementById('result').innerHTML = '测试中...';
+  try {
+    const r = await fetch('/api/test-code', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code: code})
+    });
+    const data = await r.json();
+    document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+  } catch(e) {
+    document.getElementById('result').innerHTML = '<pre style="color:red">Error: ' + e.message + '</pre>';
+  }
+}
+testCode();
+</script>
+</body>
+</html>

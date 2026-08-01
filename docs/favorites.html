@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>收藏夹 - StorySpeak English</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <a href="./stories.html" class="logo">StorySpeak</a>
+      <nav class="nav">
+        <a href="./stories.html">故事库</a>
+        <a href="./favorites.html" class="active">收藏夹</a>
+        <a href="./profile.html">个人中心</a>
+        <a href="./admin.html" id="adminLink" style="display:none;">⚙️ 管理后台</a>
+        <a href="#" id="logoutBtn">退出</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <h2 style="margin: 32px 0 16px;">我的收藏 ❤️</h2>
+    <div id="favoritesGrid" class="story-grid"></div>
+    <div id="emptyState" class="empty-state">
+      <div class="empty-state-icon">📝</div>
+      <div>还没有收藏任何故事</div>
+      <a href="./stories.html" class="btn btn-primary" style="margin-top: 16px; display: inline-block;">去发现故事</a>
+    </div>
+  </div>
+
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
+    async function init() {
+      if (!window.checkAuth()) return;
+
+      document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.logout();
+      });
+
+      try {
+        const user = await window.api('/api/user/profile');
+        if (user.is_admin) {
+          document.getElementById('adminLink').style.display = 'inline';
+        }
+        
+        // Load favorite story IDs
+        const favoriteIds = await window.api('/api/favorites');
+        
+        if (!favoriteIds || favoriteIds.length === 0) {
+          document.getElementById('favoritesGrid').style.display = 'none';
+          document.getElementById('emptyState').style.display = 'block';
+          return;
+        }
+        
+        // Load all stories and filter by favorites
+        const response = await fetch('./js/data.json');
+        const data = await response.json();
+        const stories = data.stories || [];
+        const favorites = stories.filter(s => favoriteIds.includes(s.id));
+        
+        const grid = document.getElementById('favoritesGrid');
+        const empty = document.getElementById('emptyState');
+        
+        if (favorites.length === 0) {
+          grid.style.display = 'none';
+          empty.style.display = 'block';
+        } else {
+          empty.style.display = 'none';
+          grid.innerHTML = favorites.map(s => {
+            const difficultyText = { easy: '简单', medium: '中等', hard: '困难' }[s.difficulty] || s.difficulty;
+            const categoryText = { daily: '日常生活', travel: '旅行', business: '商务', social: '社交', academic: '学术' }[s.category] || s.category;
+            return `
+              <a href="./story.html?id=${s.id}" class="story-card">
+                <div class="story-cover">
+                  <span>📚</span>
+                </div>
+                <div class="story-info">
+                  <div class="story-title">${s.title}</div>
+                  <div class="story-meta">
+                    <span class="badge badge-${s.difficulty}">${difficultyText}</span>
+                    <span class="badge badge-category">${categoryText}</span>
+                  </div>
+                </div>
+              </a>
+            `;
+          }).join('');
+        }
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

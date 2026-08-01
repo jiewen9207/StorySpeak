@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - StorySpeak English</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .story-form textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 12px;
+      border: 2px solid #e0e4e8;
+      border-radius: 8px;
+      font-size: 14px;
+      resize: vertical;
+    }
+    .tab-buttons {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      padding: 12px 24px;
+      background: #f0f2f5;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <aside class="sidebar">
+      <div class="sidebar-logo">📚 StorySpeak 管理</div>
+      <ul class="sidebar-nav">
+        <li class="active" data-page="dashboard"><span class="icon">📊</span>仪表盘</li>
+        <li data-page="codes"><span class="icon">🔑</span>兑换码</li>
+        <li data-page="users"><span class="icon">👥</span>用户管理</li>
+        <li data-page="goto-learn" onclick="window.location.href='./stories.html'"><span class="icon">📚</span>返回学习</li>
+        <li data-page="logout" onclick="logout()"><span class="icon">🚪</span>退出登录</li>
+      </ul>
+    </aside>
+
+    <main class="main-content">
+      <div id="dashboard" class="admin-page active">
+        <h2 style="margin-bottom: 24px;">📊 数据概览</h2>
+        <div id="statsGrid" class="stats-grid"></div>
+      </div>
+
+      <div id="codes" class="admin-page">
+        <h2 style="margin-bottom: 24px;">🔑 兑换码管理</h2>
+        <div class="card" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 16px;">生成兑换码</h3>
+          <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            <label>生成数量：</label>
+            <input type="number" id="codeCount" value="10" min="1" max="1000" style="width: 120px; padding: 10px; border: 2px solid #e0e4e8; border-radius: 8px;">
+            <button id="generateCodesBtn" class="btn btn-primary">批量生成</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom: 16px;">兑换码列表</h3>
+          <div style="margin-bottom: 16px;">
+            <button class="tab-btn active" data-code-filter="">全部</button>
+            <button class="tab-btn" data-code-filter="unused">未使用</button>
+            <button class="tab-btn" data-code-filter="used">已使用</button>
+          </div>
+          <div id="codesTable"></div>
+        </div>
+      </div>
+
+      <div id="users" class="admin-page">
+        <h2 style="margin-bottom: 24px;">👥 用户管理</h2>
+        <div id="usersTable"></div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="./js/supabase.js"></script>
+  <script type="module">
+    let currentCodeFilter = '';
+
+    async function init() {
+      if (!window.checkAuth()) return;
+      
+      try {
+        const user = await window.api('/api/user/profile');
+        if (!user.is_admin) {
+          window.showMessage('您没有管理员权限', 'error');
+          setTimeout(() => {
+            window.location.href = './stories.html';
+          }, 2000);
+          return;
+        }
+      } catch (err) {
+        window.location.href = './';
+        return;
+      }
+
+      setupNavigation();
+      loadDashboard();
+    }
+
+    function setupNavigation() {
+      document.querySelectorAll('.sidebar-nav li[data-page]').forEach(li => {
+        li.addEventListener('click', () => {
+          const page = li.dataset.page;
+          if (page === 'logout' || page === 'goto-learn') return;
+          
+          document.querySelectorAll('.sidebar-nav li').forEach(l => l.classList.remove('active'));
+          li.classList.add('active');
+          
+          document.querySelectorAll('.admin-page').forEach(p => p.classList.remove('active'));
+          document.getElementById(page).classList.add('active');
+          
+          if (page === 'codes') loadCodes();
+          if (page === 'users') loadUsers();
+        });
+      });
+    }
+
+    async function loadDashboard() {
+      try {
+        const stats = await window.api('/api/admin/stats');
+        
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-value">${stats.totalUsers}</div>
+            <div class="stat-label">总用户数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${stats.activeUsers}</div>
+            <div class="stat-label">已激活用户</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${stats.totalCodes}</div>
+            <div class="stat-label">总兑换码</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${stats.usedCodes}</div>
+            <div class="stat-label">已使用</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${stats.totalStories}</div>
+            <div class="stat-label">故事总数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${stats.todayUsers}</div>
+            <div class="stat-label">今日新增</div>
+          </div>
+        `;
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    }
+
+    document.getElementById('generateCodesBtn').addEventListener('click', async () => {
+      const count = parseInt(document.getElementById('codeCount').value) || 10;
+      if (count < 1 || count > 1000) {
+        window.showMessage('请输入1-1000之间的数字', 'error');
+        return;
+      }
+      
+      try {
+        const result = await window.api('/api/admin/generate-codes', {
+          method: 'POST',
+          body: { count }
+        });
+        
+        const codesText = result.codes.join('\n');
+        const blob = new Blob([codesText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `兑换码_${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        window.showMessage(`成功生成 ${count} 个兑换码，已自动下载`, 'success');
+        loadCodes();
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    });
+
+    async function loadCodes() {
+      try {
+        const endpoint = currentCodeFilter 
+          ? `/api/admin/codes?status=${currentCodeFilter}` 
+          : '/api/admin/codes';
+        const codes = await window.api(endpoint);
+        const table = document.getElementById('codesTable');
+        
+        if (!codes || codes.length === 0) {
+          table.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔑</div><div>暂无兑换码</div></div>';
+          return;
+        }
+        
+        table.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>兑换码</th>
+                <th>状态</th>
+                <th>使用时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${codes.map(c => `
+                <tr>
+                  <td style="font-family:monospace;letter-spacing:1px;">${c.code}</td>
+                  <td>${c.status === 'used' ? '<span class="badge badge-hard">已使用</span>' : '<span class="badge badge-easy">未使用</span>'}</td>
+                  <td>${c.used_at || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    }
+
+    document.querySelectorAll('[data-code-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-code-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCodeFilter = btn.dataset.codeFilter;
+        loadCodes();
+      });
+    });
+
+    async function loadUsers() {
+      try {
+        const users = await window.api('/api/admin/users');
+        const table = document.getElementById('usersTable');
+        
+        if (!users || users.length === 0) {
+          table.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><div>暂无用户</div></div>';
+          return;
+        }
+        
+        table.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>用户名</th>
+                <th>邮箱</th>
+                <th>状态</th>
+                <th>注册时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.map(u => `
+                <tr>
+                  <td>${u.username || '-'}</td>
+                  <td>${u.email}</td>
+                  <td>${u.is_active ? '<span class="badge badge-easy">已激活</span>' : '<span class="badge badge-hard">未激活</span>'}</td>
+                  <td>${u.created_at?.split('T')[0] || '-'}</td>
+                  <td>
+                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="toggleUserActive(${u.id})">
+                      ${u.is_active ? '禁用' : '启用'}
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    }
+
+    window.toggleUserActive = async function(id) {
+      try {
+        await window.api(`/api/admin/users/${id}/toggle-active`, { method: 'POST' });
+        window.showMessage('操作成功', 'success');
+        loadUsers();
+      } catch (err) {
+        window.showMessage(err.message, 'error');
+      }
+    };
+
+    window.logout = function() {
+      window.clearToken();
+      window.location.href = './';
+    };
+
+    init();
+  </script>
+</body>
+</html>
