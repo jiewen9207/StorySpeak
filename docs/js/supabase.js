@@ -1,5 +1,12 @@
-// Fully local auth - no server needed!
-const API_BASE = '';
+// Supabase client for GitHub Pages - Cloud Database Version
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://ylpeaimlmlruwookbcxk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlscGVhaW1sbWxydXdvb2tiY3hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3ODU4MjYsImV4cCI6MjA2NTM2MTgyNn0.W7Xq9Vq3T_qFv5zGZi6JqV8aZzYdJQvJc-0m9R2qPjI';
+const SUPABASE_SERVICE_KEY = 'sb_secret_4uLoN1Y-clm-KPgc-_KIgA_HTD0AtIU';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // Token management
 function getToken() {
@@ -17,7 +24,6 @@ function clearToken() {
   localStorage.removeItem('ss_token');
   localStorage.removeItem('ss_email');
   localStorage.removeItem('ss_user');
-  // Don't clear user data, codes, progress, favorites, words
 }
 
 function setUser(user) {
@@ -32,115 +38,6 @@ function getUser() {
 function getCurrentEmail() {
   return localStorage.getItem('ss_email');
 }
-
-// User management - all in localStorage
-function getUsers() {
-  const data = localStorage.getItem('ss_users');
-  return data ? JSON.parse(data) : [];
-}
-
-function saveUsers(users) {
-  localStorage.setItem('ss_users', JSON.stringify(users));
-}
-
-function getUserByEmail(email) {
-  const users = getUsers();
-  return users.find(u => u.email.toLowerCase() === email.toLowerCase());
-}
-
-function createUser(userData) {
-  const users = getUsers();
-  if (users.find(u => u.email.toLowerCase() === userData.email.toLowerCase())) {
-    throw new Error('该邮箱已注册');
-  }
-  const user = {
-    id: Date.now(),
-    username: userData.username,
-    email: userData.email.toLowerCase(),
-    password: userData.password,
-    is_active: false,
-    is_admin: userData.email.toLowerCase() === 'admin@storyspeak.com',
-    created_at: new Date().toISOString()
-  };
-  users.push(user);
-  saveUsers(users);
-  return user;
-}
-
-// Redemption codes
-function getCodes() {
-  const data = localStorage.getItem('ss_codes');
-  return data ? JSON.parse(data) : [];
-}
-
-function saveCodes(codes) {
-  localStorage.setItem('ss_codes', JSON.stringify(codes));
-}
-
-// Progress
-function getProgress(userId) {
-  const data = localStorage.getItem('ss_progress');
-  return data ? JSON.parse(data) : [];
-}
-
-function saveProgress(progress) {
-  localStorage.setItem('ss_progress', JSON.stringify(progress));
-}
-
-// Favorites
-function getFavorites(userId) {
-  const data = localStorage.getItem('ss_favorites');
-  return data ? JSON.parse(data) : [];
-}
-
-function saveFavorites(favorites) {
-  localStorage.setItem('ss_favorites', JSON.stringify(favorites));
-}
-
-// Words
-function getWords(userId) {
-  const data = localStorage.getItem('ss_words');
-  return data ? JSON.parse(data) : [];
-}
-
-function saveWords(words) {
-  localStorage.setItem('ss_words', JSON.stringify(words));
-}
-
-// Initialize with default admin and some codes
-function initDefaults() {
-  // Add admin if not exists
-  if (!getUserByEmail('admin@storyspeak.com')) {
-    const users = getUsers();
-    users.push({
-      id: 1,
-      username: 'admin',
-      email: 'admin@storyspeak.com',
-      password: 'admin123',
-      is_active: true,
-      is_admin: true,
-      created_at: '2024-01-01T00:00:00Z'
-    });
-    saveUsers(users);
-  }
-  
-  // Add some codes if none exist
-  if (getCodes().length === 0) {
-    const codes = [];
-    for (let i = 0; i < 100; i++) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let code = '';
-      for (let j = 0; j < 12; j++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      codes.push({ code, status: 'unused', created_at: new Date().toISOString() });
-    }
-    saveCodes(codes);
-  }
-}
-
-// Initialize on load
-initDefaults();
 
 // Show message
 function showMessage(message, type = 'success') {
@@ -176,12 +73,22 @@ async function logout() {
 // API wrapper
 async function api(endpoint, options = {}) {
   const method = options.method || 'GET';
-  const body = options.body;
+  const body = options.body || {};
   const email = getCurrentEmail();
   
   // Login
   if (endpoint === '/api/login') {
-    const user = getUserByEmail(body.login);
+    const loginEmail = body.login.toLowerCase();
+    
+    const { data: users, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', loginEmail)
+      .limit(1);
+    
+    if (error) throw new Error('数据库错误: ' + error.message);
+    
+    const user = users && users.length > 0 ? users[0] : null;
     
     if (!user) {
       throw new Error('用户不存在，请先注册');
@@ -199,11 +106,32 @@ async function api(endpoint, options = {}) {
   
   // Register
   if (endpoint === '/api/register') {
-    const user = createUser({
-      username: body.username,
-      email: body.email,
-      password: body.password
-    });
+    const regEmail = body.email.toLowerCase();
+    
+    const { data: existing } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', regEmail)
+      .single();
+    
+    if (existing) {
+      throw new Error('该邮箱已注册，请直接登录');
+    }
+    
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .insert({
+        username: body.username,
+        email: regEmail,
+        password: body.password,
+        is_active: false,
+        is_admin: false,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) throw new Error('注册失败: ' + error.message);
     
     return { success: true };
   }
@@ -212,18 +140,36 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/user/profile') {
     if (!email) throw new Error('请先登录');
     
-    const user = getUserByEmail(email);
-    if (!user) throw new Error('用户不存在');
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error) throw new Error('获取用户信息失败');
     
     // Get stats
-    const progress = getProgress(user.id);
-    const favorites = getFavorites(user.id);
+    const { count: totalStories } = await supabaseAdmin
+      .from('user_progress')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+    
+    const { count: completed } = await supabaseAdmin
+      .from('user_progress')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_completed', true);
+    
+    const { count: favorites } = await supabaseAdmin
+      .from('favorites')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
     
     user.stats = {
-      totalStories: progress.length,
-      completedStories: progress.filter(p => p.is_completed).length,
-      totalTime: progress.reduce((sum, p) => sum + (p.total_time || 0), 0),
-      favorites: favorites.length
+      totalStories: totalStories || 0,
+      completedStories: completed || 0,
+      totalTime: 0,
+      favorites: favorites || 0
     };
     
     setUser(user);
@@ -234,31 +180,36 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/redeem') {
     if (!email) throw new Error('请先登录');
     
-    const user = getUserByEmail(email);
+    const { data: user } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+    
     if (!user) throw new Error('用户不存在');
     
-    const codes = getCodes();
-    const code = codes.find(c => c.code === body.code.trim().toUpperCase());
+    const { data: code } = await supabaseAdmin
+      .from('redemption_codes')
+      .select('*')
+      .eq('code', body.code.trim().toUpperCase())
+      .single();
     
     if (!code) throw new Error('兑换码无效');
     if (code.status === 'used') throw new Error('兑换码已被使用');
     
-    // Activate user
-    const users = getUsers();
-    const userIndex = users.findIndex(u => u.id === user.id);
-    if (userIndex >= 0) {
-      users[userIndex].is_active = true;
-      saveUsers(users);
-    }
+    await supabaseAdmin
+      .from('users')
+      .update({ is_active: true })
+      .eq('id', user.id);
     
-    // Mark code as used
-    const codeIndex = codes.findIndex(c => c.code === code.code);
-    if (codeIndex >= 0) {
-      codes[codeIndex].status = 'used';
-      codes[codeIndex].used_by = user.id;
-      codes[codeIndex].used_at = new Date().toISOString();
-      saveCodes(codes);
-    }
+    await supabaseAdmin
+      .from('redemption_codes')
+      .update({
+        status: 'used',
+        used_by: user.id,
+        used_at: new Date().toISOString()
+      })
+      .eq('id', code.id);
     
     return { success: true };
   }
@@ -266,56 +217,42 @@ async function api(endpoint, options = {}) {
   // Words
   if (endpoint === '/api/words') {
     if (!email) return [];
-    const user = getUserByEmail(email);
+    const { data: user } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
     if (!user) return [];
-    return getWords(user.id);
+    const { data: words } = await supabaseAdmin.from('saved_words').select('id, word').eq('user_id', user.id);
+    return words || [];
   }
   
   if (endpoint.match(/^\/api\/words\/.+/) && method === 'DELETE') {
     if (!email) throw new Error('请先登录');
     const word = decodeURIComponent(endpoint.split('/').pop());
-    const user = getUserByEmail(email);
-    if (!user) throw new Error('用户不存在');
-    
-    const words = getWords(user.id);
-    const filtered = words.filter(w => w.word !== word);
-    saveWords(filtered);
-    
+    const { data: user } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
+    await supabaseAdmin.from('saved_words').delete().eq('user_id', user.id).eq('word', word);
     return { success: true };
   }
   
   // Favorites
   if (endpoint === '/api/favorites') {
     if (!email) return [];
-    const user = getUserByEmail(email);
+    const { data: user } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
     if (!user) return [];
-    return getFavorites(user.id).map(f => f.story_id);
+    const { data: favs } = await supabaseAdmin.from('favorites').select('story_id').eq('user_id', user.id);
+    return favs?.map(f => f.story_id) || [];
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'POST') {
     if (!email) throw new Error('请先登录');
     const storyId = parseInt(endpoint.split('/').pop());
-    const user = getUserByEmail(email);
-    if (!user) throw new Error('用户不存在');
-    
-    const favorites = getFavorites(user.id);
-    if (!favorites.find(f => f.story_id === storyId)) {
-      favorites.push({ story_id: storyId });
-      saveFavorites(favorites);
-    }
-    
+    const { data: user } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
+    await supabaseAdmin.from('favorites').upsert({ user_id: user.id, story_id: storyId }, { onConflict: 'user_id,story_id' });
     return { success: true };
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'DELETE') {
     if (!email) throw new Error('请先登录');
     const storyId = parseInt(endpoint.split('/').pop());
-    const user = getUserByEmail(email);
-    if (!user) throw new Error('用户不存在');
-    
-    const favorites = getFavorites(user.id).filter(f => f.story_id !== storyId);
-    saveFavorites(favorites);
-    
+    const { data: user } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
+    await supabaseAdmin.from('favorites').delete().eq('user_id', user.id).eq('story_id', storyId);
     return { success: true };
   }
   
@@ -323,128 +260,91 @@ async function api(endpoint, options = {}) {
   if (endpoint.match(/^\/api\/progress\/\d+$/) && method === 'POST') {
     if (!email) throw new Error('请先登录');
     const storyId = parseInt(endpoint.split('/').pop());
-    const user = getUserByEmail(email);
-    if (!user) throw new Error('用户不存在');
-    
-    const progress = getProgress(user.id);
-    const existing = progress.findIndex(p => p.story_id === storyId);
-    
-    if (existing >= 0) {
-      progress[existing] = { ...progress[existing], ...body, last_study_at: new Date().toISOString() };
+    const { data: user } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
+    const { data: existing } = await supabaseAdmin.from('user_progress').select('id').eq('user_id', user.id).eq('story_id', storyId).single();
+    if (existing) {
+      await supabaseAdmin.from('user_progress').update({ ...body, last_study_at: new Date().toISOString() }).eq('id', existing.id);
     } else {
-      progress.push({ user_id: user.id, story_id: storyId, ...body, last_study_at: new Date().toISOString() });
+      await supabaseAdmin.from('user_progress').insert({ user_id: user.id, story_id: storyId, ...body, last_study_at: new Date().toISOString() });
     }
-    
-    saveProgress(progress);
     return { success: true };
   }
   
   // Admin: stats
   if (endpoint === '/api/admin/stats') {
-    if (!email) throw new Error('请先登录');
+    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
     
-    const user = getUserByEmail(email);
-    if (!user?.is_admin) throw new Error('需要管理员权限');
+    const { count: totalUsers } = await supabaseAdmin.from('users').select('*', { count: 'exact', head: true });
+    const { count: activeUsers } = await supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('is_active', true);
+    const { count: totalCodes } = await supabaseAdmin.from('redemption_codes').select('*', { count: 'exact', head: true });
+    const { count: usedCodes } = await supabaseAdmin.from('redemption_codes').select('*', { count: 'exact', head: true }).eq('status', 'used');
     
-    const users = getUsers();
-    const codes = getCodes();
+    const today = new Date().toISOString().split('T')[0];
+    const { count: todayUsers } = await supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', today);
     
     return {
-      totalUsers: users.length,
-      activeUsers: users.filter(u => u.is_active).length,
-      totalCodes: codes.length,
-      usedCodes: codes.filter(c => c.status === 'used').length,
+      totalUsers: totalUsers || 0,
+      activeUsers: activeUsers || 0,
+      totalCodes: totalCodes || 0,
+      usedCodes: usedCodes || 0,
       totalStories: 1005,
-      todayUsers: users.filter(u => new Date(u.created_at).toDateString() === new Date().toDateString()).length,
+      todayUsers: todayUsers || 0,
       popularStories: []
     };
   }
   
   // Admin: generate codes
   if (endpoint === '/api/admin/generate-codes') {
-    if (!email) throw new Error('请先登录');
-    
-    const user = getUserByEmail(email);
-    if (!user?.is_admin) throw new Error('需要管理员权限');
+    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
     
     const count = body.count || 10;
-    const codes = getCodes();
+    const codes = [];
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const newCodes = [];
     
     for (let i = 0; i < count; i++) {
       let code = '';
       for (let j = 0; j < 12; j++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      newCodes.push({ code, status: 'unused', created_at: new Date().toISOString() });
+      codes.push({ code, status: 'unused' });
     }
     
-    codes.push(...newCodes);
-    saveCodes(codes);
+    await supabaseAdmin.from('redemption_codes').insert(codes);
     
-    return { codes: newCodes.map(c => c.code) };
+    return { codes: codes.map(c => c.code) };
   }
   
-  if (endpoint.match(/^\/api\/admin\/codes/)) {
-    if (!email) throw new Error('请先登录');
-    
-    const user = getUserByEmail(email);
-    if (!user?.is_admin) throw new Error('需要管理员权限');
-    
-    const codes = getCodes();
-    return codes.slice(-100).reverse();
+  if (endpoint === '/api/admin/codes') {
+    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
+    const { data: codes } = await supabaseAdmin.from('redemption_codes').select('*').order('created_at', { ascending: false }).limit(100);
+    return codes || [];
+  }
+  
+  // Admin: users
+  if (endpoint === '/api/admin/users') {
+    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
+    const { data: users } = await supabaseAdmin.from('users').select('*').order('created_at', { ascending: false });
+    return users || [];
+  }
+  
+  if (endpoint.match(/^\/api\/admin\/users\/\d+\/toggle-active$/) && method === 'POST') {
+    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
+    const userId = parseInt(endpoint.split('/')[3]);
+    const { data: user } = await supabaseAdmin.from('users').select('is_active').eq('id', userId).single();
+    if (!user) throw new Error('用户不存在');
+    await supabaseAdmin.from('users').update({ is_active: !user.is_active }).eq('id', userId);
+    return { is_active: !user.is_active };
   }
   
   // Change password
   if (endpoint === '/api/change-password') {
     if (!email) throw new Error('请先登录');
-    
-    const user = getUserByEmail(email);
+    const { data: user } = await supabaseAdmin.from('users').select('id, password').eq('email', email).single();
     if (!user) throw new Error('用户不存在');
-    
-    if (body.old_password !== user.password) {
-      throw new Error('原密码错误');
-    }
-    
-    if (body.new_password.length < 6) {
-      throw new Error('新密码至少6位');
-    }
-    
-    const users = getUsers();
-    const userIndex = users.findIndex(u => u.id === user.id);
-    if (userIndex >= 0) {
-      users[userIndex].password = body.new_password;
-      saveUsers(users);
-    }
-    
+    if (body.old_password !== user.password) throw new Error('原密码错误');
+    if (body.new_password.length < 6) throw new Error('新密码至少6位');
+    await supabaseAdmin.from('users').update({ password: body.new_password }).eq('id', user.id);
     return { success: true };
-  }
-  
-  // Admin: users
-  if (endpoint === '/api/admin/users') {
-    if (!email) throw new Error('请先登录');
-    
-    const user = getUserByEmail(email);
-    if (!user?.is_admin) throw new Error('需要管理员权限');
-    
-    return getUsers();
-  }
-  
-  if (endpoint.match(/^\/api\/admin\/users\/\d+\/toggle-active$/) && method === 'POST') {
-    // Check admin password from body
-    if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
-    
-    const userId = parseInt(endpoint.split('/')[3]);
-    const users = getUsers();
-    const targetUser = users.find(u => u.id === userId);
-    
-    if (!targetUser) throw new Error('用户不存在');
-    
-    targetUser.is_active = !targetUser.is_active;
-    saveUsers(users);
-    
-    return { is_active: targetUser.is_active };
   }
   
   throw new Error('Unknown endpoint');
