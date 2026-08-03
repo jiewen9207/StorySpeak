@@ -1,16 +1,21 @@
-// StorySpeak Auth - LocalStorage Version
-// 用户数据存储在浏览器本地，跨浏览器需要导出导入
+// StorySpeak Auth - Supabase Cloud Version
+// 用户数据存储在云端，手机和电脑可以共用同一个账号
+
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://ylpeaimlmlruwookbcxk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlscGVhaW1sbWxydXdvb2tiY3hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzODEyMzEsImV4cCI6MjEwMDk1NzIzMX0.S1LkdkgFuhLaFJSNkurSRO-LP9EvNonXUbh8gqDooLk';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Token management
 function getToken() {
   return localStorage.getItem('ss_token');
 }
 
-function setToken(email) {
-  const token = btoa(email + ':' + Date.now());
-  localStorage.setItem('ss_token', token);
-  localStorage.setItem('ss_email', email);
-  return token;
+function setToken(session) {
+  localStorage.setItem('ss_token', session.access_token);
+  return session.access_token;
 }
 
 function clearToken() {
@@ -26,20 +31,6 @@ function setUser(user) {
 function getUser() {
   const data = localStorage.getItem('ss_user');
   return data ? JSON.parse(data) : null;
-}
-
-function getCurrentEmail() {
-  return localStorage.getItem('ss_email');
-}
-
-// LocalStorage helpers for users
-function getUsers() {
-  const data = localStorage.getItem('ss_users');
-  return data ? JSON.parse(data) : [];
-}
-
-function setUsers(users) {
-  localStorage.setItem('ss_users', JSON.stringify(users));
 }
 
 // Show message
@@ -64,176 +55,213 @@ async function checkAuth() {
     window.location.href = './';
     return false;
   }
+  
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) {
+    clearToken();
+    window.location.href = './';
+    return false;
+  }
+  
   return true;
 }
 
 // Logout
 async function logout() {
+  await supabase.auth.signOut();
   clearToken();
   window.location.href = './';
 }
 
-// API wrapper - 使用 localStorage 存储
+// API wrapper - 使用 Supabase Auth
 async function api(endpoint, options = {}) {
   const method = options.method || 'GET';
   const body = options.body || {};
-  const email = getCurrentEmail();
   
   // Login
   if (endpoint === '/api/login') {
-    const loginEmail = body.login.toLowerCase();
-    const users = getUsers();
-    const user = users.find(u => u.email === loginEmail);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: body.login.toLowerCase(),
+      password: body.password
+    });
     
-    if (!user) {
-      throw new Error('用户不存在，请先注册');
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('邮箱或密码错误');
+      }
+      throw new Error(error.message);
     }
     
-    if (user.password !== body.password) {
-      throw new Error('密码错误');
-    }
+    // Get user profile
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
     
-    const token = setToken(user.email);
+    const user = {
+      id: data.user.id,
+      email: data.user.email,
+      username: profile?.username || data.user.email.split('@')[0],
+      is_active: profile?.is_active ?? true,
+      is_admin: profile?.is_admin ?? false
+    };
+    
+    setToken(data.session);
     setUser(user);
     
-    return { token, user };
+    return { token: data.session.access_token, user };
   }
   
   // Register
   if (endpoint === '/api/register') {
-    const regEmail = body.email.toLowerCase();
-    const users = getUsers();
+    const { data, error } = await supabase.auth.signUp({
+      email: body.email.toLowerCase(),
+      password: body.password,
+      options: {
+        data: {
+          username: body.username
+        }
+      }
+    });
     
-    if (users.find(u => u.email === regEmail)) {
-      throw new Error('该邮箱已注册，请直接登录');
+    if (error) {
+      if (error.message.includes('already registered')) {
+        throw new Error('该邮箱已注册，请直接登录');
+      }
+      throw new Error('注册失败: ' + error.message);
     }
     
-    const newUser = {
-      id: Date.now(),
-      username: body.username,
-      email: regEmail,
-      password: body.password,
-      is_active: false,
-      is_admin: false,
-      created_at: new Date().toISOString()
-    };
-    
-    users.push(newUser);
-    setUsers(users);
+    // Create user profile in users table
+    if (data.user) {
+      await supabase.from('users').upsert({
+        id: data.user.id,
+        username: body.username,
+        is_active: false,
+        is_admin: false
+      });
+    }
     
     return { success: true };
   }
   
   // User profile
   if (endpoint === '/api/user/profile') {
-    if (!email) throw new Error('请先登录');
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    if (authError || !authUser) throw new Error('请先登录');
     
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
     
-    if (!user) throw new Error('用户不存在');
+    const user = {
+      id: authUser.id,
+      email: authUser.email,
+      username: profile?.username || authUser.email.split('@')[0],
+      is_active: profile?.is_active ?? true,
+      is_admin: profile?.is_admin ?? false
+    };
     
-    const progress = JSON.parse(localStorage.getItem('ss_progress') || '[]');
-    const favorites = JSON.parse(localStorage.getItem('ss_favorites') || '[]');
+    // Get stats
+    const { count: totalStories } = await supabase
+      .from('user_progress')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', authUser.id);
+    
+    const { count: completed } = await supabase
+      .from('user_progress')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', authUser.id)
+      .eq('is_completed', true);
+    
+    const { count: favorites } = await supabase
+      .from('favorites')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', authUser.id);
     
     user.stats = {
-      totalStories: progress.filter(p => p.user_id === user.id).length,
-      completedStories: progress.filter(p => p.user_id === user.id && p.is_completed).length,
+      totalStories: totalStories || 0,
+      completedStories: completed || 0,
       totalTime: 0,
-      favorites: favorites.filter(f => f.user_id === user.id).length
+      favorites: favorites || 0
     };
     
     setUser(user);
     return user;
   }
   
-  // Redeem code
+  // Redeem code - activate user
   if (endpoint === '/api/redeem') {
-    if (!email) throw new Error('请先登录');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error('请先登录');
     
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
+    await supabase
+      .from('users')
+      .update({ is_active: true })
+      .eq('id', authUser.id);
     
-    if (!user) throw new Error('用户不存在');
-    
-    // 激活用户
-    user.is_active = true;
-    setUsers(users);
-    setUser(user);
+    const user = getUser();
+    if (user) {
+      user.is_active = true;
+      setUser(user);
+    }
     
     return { success: true };
   }
   
   // Words
   if (endpoint === '/api/words') {
-    if (!email) return [];
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    if (!user) return [];
-    const words = JSON.parse(localStorage.getItem('ss_words') || '[]');
-    return words.filter(w => w.user_id === user.id);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return [];
+    const { data: words } = await supabase.from('saved_words').select('id, word').eq('user_id', authUser.id);
+    return words || [];
   }
   
   if (endpoint.match(/^\/api\/words\/.+/) && method === 'DELETE') {
-    if (!email) throw new Error('请先登录');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error('请先登录');
     const word = decodeURIComponent(endpoint.split('/').pop());
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    const words = JSON.parse(localStorage.getItem('ss_words') || '[]');
-    const filtered = words.filter(w => !(w.user_id === user.id && w.word === word));
-    localStorage.setItem('ss_words', JSON.stringify(filtered));
+    await supabase.from('saved_words').delete().eq('user_id', authUser.id).eq('word', word);
     return { success: true };
   }
   
   // Favorites
   if (endpoint === '/api/favorites') {
-    if (!email) return [];
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    if (!user) return [];
-    const favorites = JSON.parse(localStorage.getItem('ss_favorites') || '[]');
-    return favorites.filter(f => f.user_id === user.id).map(f => f.story_id);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return [];
+    const { data: favs } = await supabase.from('favorites').select('story_id').eq('user_id', authUser.id);
+    return favs?.map(f => f.story_id) || [];
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'POST') {
-    if (!email) throw new Error('请先登录');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error('请先登录');
     const storyId = parseInt(endpoint.split('/').pop());
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    const favorites = JSON.parse(localStorage.getItem('ss_favorites') || '[]');
-    if (!favorites.find(f => f.user_id === user.id && f.story_id === storyId)) {
-      favorites.push({ user_id: user.id, story_id: storyId });
-      localStorage.setItem('ss_favorites', JSON.stringify(favorites));
-    }
+    await supabase.from('favorites').upsert({ user_id: authUser.id, story_id: storyId }, { onConflict: 'user_id,story_id' });
     return { success: true };
   }
   
   if (endpoint.match(/^\/api\/favorites\/\d+$/) && method === 'DELETE') {
-    if (!email) throw new Error('请先登录');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error('请先登录');
     const storyId = parseInt(endpoint.split('/').pop());
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    const favorites = JSON.parse(localStorage.getItem('ss_favorites') || '[]');
-    const filtered = favorites.filter(f => !(f.user_id === user.id && f.story_id === storyId));
-    localStorage.setItem('ss_favorites', JSON.stringify(filtered));
+    await supabase.from('favorites').delete().eq('user_id', authUser.id).eq('story_id', storyId);
     return { success: true };
   }
   
   // Progress
   if (endpoint.match(/^\/api\/progress\/\d+$/) && method === 'POST') {
-    if (!email) throw new Error('请先登录');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error('请先登录');
     const storyId = parseInt(endpoint.split('/').pop());
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    const progress = JSON.parse(localStorage.getItem('ss_progress') || '[]');
-    
-    const existingIdx = progress.findIndex(p => p.user_id === user.id && p.story_id === storyId);
-    if (existingIdx >= 0) {
-      progress[existingIdx] = { ...progress[existingIdx], ...body, last_study_at: new Date().toISOString() };
+    const { data: existing } = await supabase.from('user_progress').select('id').eq('user_id', authUser.id).eq('story_id', storyId).single();
+    if (existing) {
+      await supabase.from('user_progress').update({ ...body, last_study_at: new Date().toISOString() }).eq('id', existing.id);
     } else {
-      progress.push({ user_id: user.id, story_id: storyId, ...body, last_study_at: new Date().toISOString() });
+      await supabase.from('user_progress').insert({ user_id: authUser.id, story_id: storyId, ...body, last_study_at: new Date().toISOString() });
     }
-    localStorage.setItem('ss_progress', JSON.stringify(progress));
     return { success: true };
   }
   
@@ -241,18 +269,22 @@ async function api(endpoint, options = {}) {
   if (endpoint === '/api/admin/stats') {
     if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
     
-    const users = getUsers();
-    const codes = JSON.parse(localStorage.getItem('ss_codes') || '[]');
+    const { data: allUsers, error: usersError } = await supabase.auth.admin.listUsers();
+    if (usersError) throw new Error('获取用户列表失败');
+    
+    const { count: totalCodes } = await supabase.from('redemption_codes').select('*', { count: 'exact', head: true });
+    const { count: usedCodes } = await supabase.from('redemption_codes').select('*', { count: 'exact', head: true }).eq('status', 'used');
     
     const today = new Date().toISOString().split('T')[0];
+    const todayUsers = allUsers.users.filter(u => u.created_at.startsWith(today)).length;
     
     return {
-      totalUsers: users.length,
-      activeUsers: users.filter(u => u.is_active).length,
-      totalCodes: codes.length,
-      usedCodes: codes.filter(c => c.status === 'used').length,
+      totalUsers: allUsers.users.length,
+      activeUsers: allUsers.users.length,
+      totalCodes: totalCodes || 0,
+      usedCodes: usedCodes || 0,
       totalStories: 1005,
-      todayUsers: users.filter(u => u.created_at.startsWith(today)).length,
+      todayUsers: todayUsers,
       popularStories: []
     };
   }
@@ -262,59 +294,75 @@ async function api(endpoint, options = {}) {
     if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
     
     const count = body.count || 10;
-    const codes = JSON.parse(localStorage.getItem('ss_codes') || '[]');
+    const codes = [];
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     
-    const newCodes = [];
     for (let i = 0; i < count; i++) {
       let code = '';
       for (let j = 0; j < 12; j++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
       codes.push({ code, status: 'unused', created_at: new Date().toISOString() });
-      newCodes.push(code);
     }
     
-    localStorage.setItem('ss_codes', JSON.stringify(codes));
+    await supabase.from('redemption_codes').insert(codes);
     
-    return { codes: newCodes };
+    return { codes: codes.map(c => c.code) };
   }
   
   if (endpoint === '/api/admin/codes') {
     if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
-    const codes = JSON.parse(localStorage.getItem('ss_codes') || '[]');
-    return codes.slice(-100).reverse();
+    const { data: codes } = await supabase.from('redemption_codes').select('*').order('created_at', { ascending: false }).limit(100);
+    return codes || [];
   }
   
   // Admin: users
   if (endpoint === '/api/admin/users') {
     if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
-    const users = getUsers();
-    return users.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    const { data: allUsers, error } = await supabase.auth.admin.listUsers();
+    if (error) throw new Error('获取用户列表失败: ' + error.message);
+    
+    const userIds = allUsers.users.map(u => u.id);
+    let profiles = [];
+    if (userIds.length > 0) {
+      const { data } = await supabase.from('users').select('*').in('id', userIds);
+      profiles = data || [];
+    }
+    
+    const users = allUsers.users.map(u => {
+      const profile = profiles.find(p => p.id === u.id);
+      return {
+        id: u.id,
+        email: u.email,
+        username: profile?.username || u.email.split('@')[0],
+        is_active: profile?.is_active ?? true,
+        is_admin: profile?.is_admin ?? false,
+        created_at: u.created_at
+      };
+    });
+    
+    return users;
   }
   
-  if (endpoint.match(/^\/api\/admin\/users\/\d+\/toggle-active$/) && method === 'POST') {
+  // Admin: toggle user
+  if (endpoint.match(/^\/api\/admin\/users\/.+\/toggle-active$/) && method === 'POST') {
     if (body.admin_password !== 'admin123') throw new Error('管理员密码错误');
-    const userId = parseInt(endpoint.split('/')[3]);
-    const users = getUsers();
-    const user = users.find(u => u.id === userId);
-    if (!user) throw new Error('用户不存在');
-    user.is_active = !user.is_active;
-    setUsers(users);
-    return { is_active: user.is_active };
+    const targetUserId = endpoint.split('/')[3];
+    const { data: profile } = await supabase.from('users').select('is_active').eq('id', targetUserId).single();
+    await supabase.from('users').update({ is_active: !profile?.is_active }).eq('id', targetUserId);
+    return { is_active: !profile?.is_active };
   }
   
   // Change password
   if (endpoint === '/api/change-password') {
-    if (!email) throw new Error('请先登录');
-    const users = getUsers();
-    const user = users.find(u => u.email === email);
-    if (!user) throw new Error('用户不存在');
-    if (body.old_password !== user.password) throw new Error('原密码错误');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error('请先登录');
     if (body.new_password.length < 6) throw new Error('新密码至少6位');
-    user.password = body.new_password;
-    setUsers(users);
-    setUser(user);
+    
+    const { error } = await supabase.auth.updateUser({ password: body.new_password });
+    if (error) throw new Error('修改密码失败: ' + error.message);
+    
     return { success: true };
   }
   
@@ -331,3 +379,4 @@ window.setToken = setToken;
 window.clearToken = clearToken;
 window.getUser = getUser;
 window.setUser = setUser;
+window.supabase = supabase;
